@@ -13,6 +13,7 @@
 
 {-# LANGUAGE DeriveFunctor       #-}
 {-# LANGUAGE DeriveFoldable      #-}
+{-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE DeriveTraversable   #-}
 {-# LANGUAGE EmptyDataDecls      #-}
 {-# LANGUAGE FlexibleContexts    #-}
@@ -25,9 +26,8 @@ module NN where
 
 import Control.Applicative
 import Control.Arrow
-import Control.Comonad.Cofree
 import Control.Monad
-import Control.Monad.Identity
+import Control.DeepSeq
 import Data.Foldable (Foldable)
 import Data.List
 import Data.Monoid
@@ -36,6 +36,7 @@ import Data.Text.Lazy (Text)
 import qualified Data.Text.Lazy as T
 import Data.Vector (Vector)
 import qualified Data.Vector as V
+import GHC.Generics
 import Text.PrettyPrint.Leijen.Text (Pretty(..), Doc)
 import qualified Text.PrettyPrint.Leijen.Text as PP
 
@@ -53,13 +54,15 @@ data Sigmoid
 
 data NonlinearityType a = HyperbolicTangent
                         | Sigmoid
-                        deriving (Show, Eq, Ord)
+                        deriving (Show, Eq, Ord, Generic)
 
 prettyShow :: (Show a) => a -> Doc
 prettyShow = PP.text . T.pack . show
 
 instance Pretty (NonlinearityType a) where
   pretty = prettyShow
+
+instance NFData (NonlinearityType a)
 
 hyperbolicTangentNT :: NonlinearityType HyperbolicTangent
 hyperbolicTangentNT = HyperbolicTangent
@@ -72,10 +75,12 @@ data Nonlinear
 
 data OutputType a = Linear
                   | Nonlinear
-                  deriving (Show, Eq, Ord)
+                  deriving (Show, Eq, Ord, Generic)
 
 instance Pretty (OutputType a) where
   pretty = prettyShow
+
+instance NFData (OutputType a)
 
 linearOut :: OutputType Linear
 linearOut = Linear
@@ -97,6 +102,9 @@ data NN n o a = NN {-# UNPACK #-} !(NonlinearityType n)
                    [Vector (Vector a)] -- hidden layers
                    (Vector (Vector a)) -- final layer
               deriving (Show, Eq, Ord, Functor, Foldable, Traversable)
+
+instance (NFData a) => NFData (NN n o a) where
+  rnf (NN n o xs fin) = rnf n `seq` rnf o `seq` rnf xs `seq` rnf fin
 
 nnZipWith :: (a -> b -> c) -> NN n o a -> NN n o b -> NN n o c
 nnZipWith f (NN nonlinType outType xs finX) (NN _ _ ys finY) =
@@ -178,10 +186,11 @@ forwardPropagate (NN nonlinType outType hiddenLayers finalLayer) input =
     (foldl' (f (nonlinearity nonlinType)) input hiddenLayers)
     finalLayer
   where
-    f activation prev layer = V.map (\v -> seqIt $
-                                           activation $
-                                           V.head v + dot prev (V.tail v))
-                                    layer
+    f activation prev layer =
+      V.map (\lr -> seqIt $
+                    activation $
+                    V.head lr + dot prev (V.tail lr))
+            layer
 
 targetFunction :: (Floating a, Mode a) =>
                   [(Vector (Scalar a), Vector (Scalar a))] ->

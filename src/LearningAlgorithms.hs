@@ -17,11 +17,7 @@
 module LearningAlgorithms where
 
 import Control.Applicative
-import Control.Arrow
-import Control.Monad
-import Control.Monad.State
-import qualified Data.Foldable as Foldable
-import Data.Monoid
+import Data.List
 import Data.Vector (Vector)
 import qualified Data.Vector as V
 import Text.Printf
@@ -36,16 +32,6 @@ data ErrInfo = ErrInfo
              , errorFuncAbsoluteValue :: Double
              }
              deriving (Show, Eq, Ord)
-
-data DeltaInfo = DeltaInfo
-               { delta0   :: Double
-               , deltaMin :: Double
-               , deltaMax :: Double
-               , deltaIncrease :: Double
-               , deltaDecrease :: Double
-               }
-               deriving (Show, Eq, Ord)
-
 
 gradientDescentStep :: Double                           ->
                        NN n o Double                    ->
@@ -77,6 +63,16 @@ gradientDescent errInfo alpha nn dataset =
     f _ nn = (x, y, z, error "unused state")
       where
         (x, y, z) = gradientDescentStep alpha nn dataset
+
+
+data DeltaInfo = DeltaInfo
+               { delta0   :: Double
+               , deltaMin :: Double
+               , deltaMax :: Double
+               , deltaIncrease :: Double
+               , deltaDecrease :: Double
+               }
+               deriving (Show, Eq, Ord)
 
 standardDeltaInfo :: DeltaInfo
 standardDeltaInfo = DeltaInfo 0.1 1e-6 50 1.2 0.5
@@ -128,6 +124,7 @@ rprop errInfo (DeltaInfo {delta0, deltaMin, deltaMax, deltaIncrease, deltaDecrea
                               in w' `seq` delta' `seq` dwPrev' `seq`
                                  (w', delta', dwPrev')
 
+
 iteratedUpdates :: forall a n o.
                    (a -> NN n o Double -> (Double, Grad (NN n o) Double, NN n o Double, a)) ->
                    ErrInfo       ->
@@ -140,17 +137,15 @@ iteratedUpdates f (ErrInfo {epsilon, errorFuncAbsoluteValue}) value0 gradient0Si
   go 0 (value0 + sqrt epsilon) nn fState
   where
     go :: Int -> Double -> NN n o Double -> a -> (Double, NN n o Double)
-    go n prevTargetFuncVal prevNN state =
-      trace (printf "#%d, error = %g, errDelta = %g" n targetFuncVal errDelta) $
+    go n prevTargetFuncVal nn state =
+      -- trace (printf "#%d, error = %g, errDelta = %g" n targetFuncVal errDelta) $
       if errDelta > epsilon &&
          gradientSize > epsilon * gradient0Size &&
          abs targetFuncVal > errorFuncAbsoluteValue
-      then go (n + 1) targetFuncVal currNN state'
-      else (targetFuncVal, prevNN)
+      then go (n + 1) targetFuncVal nn' state'
+      else (targetFuncVal, nn)
       where
-        (targetFuncVal, gradient, currNN, state') = f state prevNN
-        gradientSize                              = nnSize $ getGrad gradient
-        errDelta                                  = abs (targetFuncVal - prevTargetFuncVal)
-
-
+        (targetFuncVal, gradient, nn', state') = f state nn
+        gradientSize                           = nnSize $ getGrad gradient
+        errDelta                               = abs (targetFuncVal - prevTargetFuncVal)
 
