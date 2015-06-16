@@ -19,6 +19,7 @@
 
 module Main where
 
+import Control.Applicative
 import Control.Arrow
 import Control.Monad
 import Control.Monad.State
@@ -31,6 +32,10 @@ import qualified Data.Vector as V
 import System.Directory
 import Text.Printf
 
+import Criterion.Main
+import Criterion.Types
+
+import Data.Random.Source (MonadRandom)
 import Data.Random.Source.PureMT (PureMT, pureMT)
 
 import Data.Colour.Names
@@ -41,7 +46,8 @@ import Graphics.Rendering.Chart hiding (Vector)
 import Graphics.Rendering.Chart.Backend.Cairo
 
 import LearningAlgorithms
-import NN
+import NN.Specific
+import qualified NN.Generic as NG
 import Util
 
 
@@ -66,15 +72,47 @@ import Util
 
 -- Algorithms
 
+criterionConfig :: Config
+criterionConfig =
+  defaultConfig { forceGC = True
+                , reportFile = Just "/tmp/nn-benchmark.html"
+                }
+
+mkSpecificNN :: (Applicative m, MonadRandom m) => m (NN HyperbolicTangent Nonlinear Double)
+mkSpecificNN = makeNN hyperbolicTangentNT nonlinearOut 1 [10, 10] 1
+-- for sine dataset
+-- mkSpecificNN = makeNN hyperbolicTangentNT nonlinearOut 1 [2, 2] 1
+
+mkGenericVectorNN :: (Applicative m, MonadRandom m) => m (NG.NN Vector HyperbolicTangent Nonlinear Double)
+mkGenericVectorNN = NG.makeNN hyperbolicTangentNT nonlinearOut 1 [10, 10] 1
+
+mkGenericListNN :: (Applicative m, MonadRandom m) => m (NG.NN [] HyperbolicTangent Nonlinear Double)
+mkGenericListNN = NG.makeNN hyperbolicTangentNT nonlinearOut 1 [10, 10] 1
+
 main :: IO ()
 main = do
-  void $ searchForFittingNN mt mkNN errInfo sinDataset
+  let nn        = evalState mkSpecificNN mt
+      rpropData = rprop standardDeltaInfo nn trainDataset
+  let nnGVec        = evalState mkGenericVectorNN mt
+      rpropDataGVec = rprop' standardDeltaInfo nnGVec trainDataset
+  let nnGList        = evalState mkGenericListNN mt
+      rpropDataGList = rprop' standardDeltaInfo nnGList $ V.map (V.toList *** V.toList) trainDataset
+  defaultMainWith criterionConfig [
+      bench "rprop specific" $ nf (constantUpdates rpropData 100) nn
+    , bench "rprop generic - Vector" $ nf (constantUpdates rpropDataGVec 100) nnGVec
+    , bench "rprop generic - List" $ nf (constantUpdates rpropDataGList 100) nnGList
+    -- , bench "rprop unboxed tuple" $ nf (rprop' errInfo standardDeltaInfo nn) trainDataset
+    ]
+  -- void $ searchForFittingNN mt mkNN errInfo trainDataset
+
   -- print nn'
   where
-    mkNN = makeNN hyperbolicTangentNT nonlinearOut 1 [5, 5, 5] 1
     errInfo = ErrInfo 1e-5 1e-8
-    -- xorDataset :: [(Vector Double, Vector Double)]
-    -- xorDataset = map (V.fromList *** V.fromList)
+
+    -- trainDataset = xorDataset
+    -- xorDataset :: Vector (Vector Double, Vector Double)
+    -- xorDataset = V.fromList $
+    --              map (V.fromList *** V.fromList)
     --                   [ ([f, f], [f])
     --                   , ([f, t], [t])
     --                   , ([t, f], [t])
@@ -84,8 +122,10 @@ main = do
     --     t = 1
     --     f = (-1)
 
-    sinDataset :: [(Vector Double, Vector Double)]
-    sinDataset = map (V.fromList *** V.fromList)
+    trainDataset = sinDataset
+    sinDataset :: Vector (Vector Double, Vector Double)
+    sinDataset = V.fromList $
+                 map (V.fromList *** V.fromList)
                      [ ([x], [sin x])
                      | x <- linspace 1000 0 (2 * pi)
                      ]
@@ -93,15 +133,15 @@ main = do
     mt :: PureMT
     mt = pureMT 0
 
-    searchForFittingNN :: PureMT                           ->
-                          State PureMT (NN n o Double)     ->
-                          ErrInfo                          ->
-                          [(Vector Double, Vector Double)] ->
-                          IO (NN n o Double)
+    searchForFittingNN :: PureMT
+                       -> State PureMT (NN n o Double)
+                       -> ErrInfo
+                       -> Vector (Vector Double, Vector Double)
+                       -> IO (NN n o Double)
     searchForFittingNN mt mkNN errInfo dataset = go mt 0
       where
-        plottableDataset :: [(Double, Double)]
-        plottableDataset = map (head . V.toList *** head . V.toList) dataset
+        plottableDataset :: Vector (Double, Double)
+        plottableDataset = V.map (head . V.toList *** head . V.toList) dataset
         go mt n = do
           printf "iteration %d\n" n
           plotResult n errorAmt nn' plottableDataset
@@ -111,17 +151,18 @@ main = do
             putStrLn "Start NN"
             T.putStrLn $ ppNN nn
             putStrLn "Start NN on dataset"
-            print $ map (head . V.toList . forwardPropagate nn . fst) dataset
+            print $ V.map (head . V.toList . forwardPropagate nn . fst) dataset
             putStrLn "Result NN"
             T.putStrLn $ ppNN nn'
             putStrLn "Result NN on dataset"
-            print $ map (head . V.toList . forwardPropagate nn' . fst) dataset
+            print $ V.map (head . V.toList . forwardPropagate nn' . fst) dataset
             return nn'
           where
             (nn, mt')       = runState mkNN mt
-            (errorAmt, nn') = rprop errInfo standardDeltaInfo nn dataset
+            rpropData       = rprop standardDeltaInfo nn dataset
+            (errorAmt, nn') = iteratedUpdates rpropData errInfo nn
 
-plotResult :: Int -> Double -> NN n o Double -> [(Double, Double)] -> IO ()
+plotResult :: Int -> Double -> NN n o Double -> Vector (Double, Double) -> IO ()
 plotResult n err nn dataset = do
   createDirectoryIfMissing True plotPath
   void $ renderableToFile def (printf "%s/model%05d.png" plotPath n) chart
@@ -129,13 +170,13 @@ plotResult n err nn dataset = do
     plotPath = "/tmp/nn3"
     chart    = toRenderable layout
       where
-        target = plot_lines_values .~ [dataset]
+        target = plot_lines_values .~ [V.toList dataset]
                $ plot_lines_style  . line_color .~ opaque red
                $ plot_lines_title .~ "original"
                $ def
 
-        predictedDataset = map (id *** V.head . forwardPropagate nn . V.singleton) dataset
-        predicted = plot_lines_values .~ [predictedDataset]
+        predictedDataset = V.map (id *** V.head . forwardPropagate nn . V.singleton) dataset
+        predicted = plot_lines_values .~ [V.toList predictedDataset]
                   $ plot_lines_style  . line_color .~ opaque blue
                   $ plot_lines_title .~ "predicted model"
                   $ def
@@ -143,9 +184,3 @@ plotResult n err nn dataset = do
         layout = layout_title .~ (printf "Model #%d, error = %g" n err)
                $ layout_plots .~ [toPlot target, toPlot predicted]
                $ def
-
-
--- Local Variables:
--- haskell-program-name: ("bash" "-c" "cd /home/sergey/projects/haskell/projects/numerical/nn/ && cabal repl exe:nn")
--- End:
-
