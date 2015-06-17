@@ -11,17 +11,18 @@
 --
 ----------------------------------------------------------------------------
 
-{-# LANGUAGE DeriveFunctor     #-}
-{-# LANGUAGE DeriveFoldable    #-}
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE EmptyDataDecls    #-}
+{-# LANGUAGE DeriveFunctor         #-}
+{-# LANGUAGE DeriveFoldable        #-}
+{-# LANGUAGE DeriveTraversable     #-}
+{-# LANGUAGE EmptyDataDecls        #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
 
 module Util where
 
-import Control.DeepSeq
 import qualified Data.Text.Lazy as T
-
-import Text.PrettyPrint.Leijen.Text (Pretty(..), Doc)
+import Text.PrettyPrint.Leijen.Text (Doc)
 import qualified Text.PrettyPrint.Leijen.Text as PP
 
 -- Nonlinearity and Output types
@@ -29,53 +30,34 @@ import qualified Text.PrettyPrint.Leijen.Text as PP
 data HyperbolicTangent
 data Sigmoid
 
-data NonlinearityType a = HyperbolicTangent
-                        | Sigmoid
-                        deriving (Show, Eq, Ord)
+class Nonlinearity n where
+  nonlinearity :: (Floating a) => nn n o b -> a -> a
+  ppNonlinearity :: nn n o a -> Doc
 
-prettyShow :: (Show a) => a -> Doc
-prettyShow = PP.text . T.pack . show
+instance Nonlinearity HyperbolicTangent where
+  nonlinearity _ x = tanh x
+  ppNonlinearity _ = "HyperbolicTangent"
 
-instance Pretty (NonlinearityType a) where
-  pretty = prettyShow
-
-instance NFData (NonlinearityType a) where
-  rnf HyperbolicTangent = ()
-  rnf Sigmoid           = ()
-
-hyperbolicTangentNT :: NonlinearityType HyperbolicTangent
-hyperbolicTangentNT = HyperbolicTangent
-
-sigmoidNT :: NonlinearityType Sigmoid
-sigmoidNT = Sigmoid
+instance Nonlinearity Sigmoid where
+  nonlinearity _ x = x' / (1 + x')
+    where
+      x' = exp x
+  ppNonlinearity _ = "Sigmoid"
 
 data Linear
 data Nonlinear
 
-data OutputType a = Linear
-                  | Nonlinear
-                  deriving (Show, Eq, Ord)
+class (Nonlinearity n) => OutputType o n where
+  output :: (Nonlinearity n, Floating a) => nn n o b -> a -> a
+  ppOutput :: nn n o a -> Doc
 
-instance Pretty (OutputType a) where
-  pretty = prettyShow
+instance (Nonlinearity n) => OutputType Linear n where
+  output _ x = x
+  ppOutput _ = "Linear"
 
-instance NFData (OutputType a) where
-  rnf Linear    = ()
-  rnf Nonlinear = ()
-
-linearOut :: OutputType Linear
-linearOut = Linear
-
-nonlinearOut :: OutputType Nonlinear
-nonlinearOut = Nonlinear
-
--- data NonlinearityType a where
---   HyperbolicTangent :: NonlinearityType HyperbolicTangent
---   Sigmoid :: NonlinearityType Sigmoid
---
--- deriving instance (Show (NonlinearityType a))
--- deriving instance (Eq (NonlinearityType a))
--- deriving instance (Ord (NonlinearityType a))
+instance (Nonlinearity n) => OutputType Nonlinear n where
+  output = nonlinearity
+  ppOutput _ = "Nonlinear"
 
 -- Other utils
 
@@ -87,3 +69,5 @@ linspace n low hi = map (\k -> low + fromIntegral k * delta) [0..n]
   where
     delta = (hi - low) / fromIntegral (n - 1)
 
+prettyShow :: (Show a) => a -> Doc
+prettyShow = PP.text . T.pack . show

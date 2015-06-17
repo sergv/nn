@@ -79,15 +79,15 @@ criterionConfig =
                 }
 
 mkSpecificNN :: (Applicative m, MonadRandom m) => m (NN HyperbolicTangent Nonlinear Double)
-mkSpecificNN = makeNN hyperbolicTangentNT nonlinearOut 1 [10, 10] 1
+mkSpecificNN = makeNN 1 [10, 10] 1
 -- for sine dataset
 -- mkSpecificNN = makeNN hyperbolicTangentNT nonlinearOut 1 [2, 2] 1
 
 mkGenericVectorNN :: (Applicative m, MonadRandom m) => m (NG.NN Vector HyperbolicTangent Nonlinear Double)
-mkGenericVectorNN = NG.makeNN hyperbolicTangentNT nonlinearOut 1 [10, 10] 1
+mkGenericVectorNN = NG.makeNN 1 [10, 10] 1
 
 mkGenericListNN :: (Applicative m, MonadRandom m) => m (NG.NN [] HyperbolicTangent Nonlinear Double)
-mkGenericListNN = NG.makeNN hyperbolicTangentNT nonlinearOut 1 [10, 10] 1
+mkGenericListNN = NG.makeNN 1 [10, 10] 1
 
 main :: IO ()
 main = do
@@ -133,11 +133,13 @@ main = do
     mt :: PureMT
     mt = pureMT 0
 
-    searchForFittingNN :: PureMT
-                       -> State PureMT (NN n o Double)
-                       -> ErrInfo
-                       -> Vector (Vector Double, Vector Double)
-                       -> IO (NN n o Double)
+    searchForFittingNN
+      :: (Nonlinearity n, OutputType o n)
+      => PureMT
+      -> State PureMT (NN n o Double)
+      -> ErrInfo
+      -> Vector (Vector Double, Vector Double)
+      -> IO (NN n o Double)
     searchForFittingNN mt mkNN errInfo dataset = go mt 0
       where
         plottableDataset :: Vector (Double, Double)
@@ -162,7 +164,9 @@ main = do
             rpropData       = rprop standardDeltaInfo nn dataset
             (errorAmt, nn') = iteratedUpdates rpropData errInfo nn
 
-plotResult :: Int -> Double -> NN n o Double -> Vector (Double, Double) -> IO ()
+plotResult
+  :: (Nonlinearity n, OutputType o n)
+  => Int -> Double -> NN n o Double -> Vector (Double, Double) -> IO ()
 plotResult n err nn dataset = do
   createDirectoryIfMissing True plotPath
   void $ renderableToFile def (printf "%s/model%05d.png" plotPath n) chart

@@ -35,20 +35,24 @@ data ErrInfo = ErrInfo
   }
   deriving (Show, Eq, Ord)
 
-gradientDescentStep :: Double
-                    -> NN n o Double
-                    -> Vector (Vector Double, Vector Double)
-                    -> (Double, Grad (NN n o) Double, NN n o Double)
+gradientDescentStep
+  :: (Nonlinearity n, OutputType o n)
+  => Double
+  -> NN n o Double
+  -> Vector (Vector Double, Vector Double)
+  -> (Double, Grad (NN n o) Double, NN n o Double)
 gradientDescentStep alpha nn dataset =
   (value, gradient, addScaled nn (- alpha) (getGrad gradient'))
   where
     (value, gradient) = targetFunctionGrad dataset nn
     gradient'         = fmap (* alpha) gradient
 
-gradientDescent :: Double
-                -> NN n o Double
-                -> Vector (Vector Double, Vector Double)
-                -> IterateData (NN n o) ()
+gradientDescent
+  :: forall n o. (Nonlinearity n, OutputType o n)
+  => Double
+  -> NN n o Double
+  -> Vector (Vector Double, Vector Double)
+  -> IterateData (NN n o) ()
 gradientDescent alpha nn dataset =
   IterateData f () value0 gradient0Size
   where
@@ -127,10 +131,12 @@ deriving instance (Show (nn Double)) => Show (RPropState nn)
 deriving instance (Eq (nn Double)) => Eq (RPropState nn)
 deriving instance (Ord (nn Double)) => Ord (RPropState nn)
 
-rprop :: DeltaInfo
-      -> NN n o Double
-      -> Vector (Vector Double, Vector Double)
-      -> IterateData (NN n o) (RPropState (NN n o))
+rprop
+  :: forall n o. (Nonlinearity n, OutputType o n)
+  => DeltaInfo
+  -> NN n o Double
+  -> Vector (Vector Double, Vector Double)
+  -> IterateData (NN n o) (RPropState (NN n o))
 rprop (DeltaInfo {delta0, deltaMin, deltaMax, deltaIncrease, deltaDecrease}) nn dataset =
   IterateData f (RPropState initialDeltas initialGrad) value0 gradient0Size
   where
@@ -218,7 +224,7 @@ constantUpdates (IterateData f fState _value0 _gradient0Size) iterations nn =
         (targetFuncVal, _, nn', state') = f state nn
 
 
-rprop' :: forall v n o. (Vect v)
+rprop' :: forall v n o. (Vect v, Nonlinearity n, OutputType o n)
        => DeltaInfo
        -> NG.NN v n o Double
        -> Vector (v Double, v Double)
