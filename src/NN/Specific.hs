@@ -26,7 +26,6 @@ import Control.Arrow
 import Control.Monad
 import Control.DeepSeq
 import Data.Monoid
-import Data.Text.Lazy (Text)
 import Data.Vector (Vector)
 import qualified Data.Vector as V
 import Text.PrettyPrint.Leijen.Text (Pretty(..), Doc)
@@ -147,9 +146,6 @@ instance forall n o a. (Show a, Nonlinearity n, OutputType o n) => Pretty (NN n 
       showLayer = PP.vsep .
                   map (PP.hcat . PP.punctuate PP.comma . map prettyShow . V.toList) .
                   V.toList
-
-ppNN :: forall a n o. (Show a, Nonlinearity n, OutputType o n) => NN n o a -> Text
-ppNN nn = PP.displayT $ PP.renderPretty 0.8 80 $ pretty nn
 
 dot :: (Floating a) => Vector a -> Vector a -> a
 dot xs ys = if V.length xs /= V.length ys

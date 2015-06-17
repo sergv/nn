@@ -28,7 +28,6 @@ import Control.Arrow
 import Control.Monad
 import Control.DeepSeq
 import Data.Monoid
-import Data.Text.Lazy (Text)
 import Data.Vector (Vector)
 import qualified Data.Vector as V
 import Text.PrettyPrint.Leijen.Text (Pretty(..), Doc)
@@ -162,9 +161,5 @@ instance forall v n o a. (Vect v, Show a, Nonlinearity n, OutputType o n) => Pre
                   map (PP.hcat . PP.punctuate PP.comma . map prettyShow . VC.toList) .
                   VC.toList
 
-ppNN :: forall v a n o. (Vect v, Show a, Nonlinearity n, OutputType o n) => NN v n o a -> Text
-ppNN nn = PP.displayT $ PP.renderPretty 0.8 80 $ pretty nn
-
 vectorSize :: (Vect v, Floating a) => v a -> a
 vectorSize = sqrt . VC.sum . VC.map (\x -> x * x) -- (^(2 :: Int))
-

@@ -21,8 +21,9 @@
 
 module Util where
 
+import Data.Text.Lazy (Text)
 import qualified Data.Text.Lazy as T
-import Text.PrettyPrint.Leijen.Text (Doc)
+import Text.PrettyPrint.Leijen.Text (Doc, Pretty)
 import qualified Text.PrettyPrint.Leijen.Text as PP
 
 -- Nonlinearity and Output types
@@ -69,5 +70,11 @@ linspace n low hi = map (\k -> low + fromIntegral k * delta) [0..n]
   where
     delta = (hi - low) / fromIntegral (n - 1)
 
+-- Pretty utils
+
 prettyShow :: (Show a) => a -> Doc
 prettyShow = PP.text . T.pack . show
+
+display :: (Pretty a) => a -> Text
+display = PP.displayT . PP.renderPretty 0.8 80 . PP.pretty
+

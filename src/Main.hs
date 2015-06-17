@@ -151,11 +151,11 @@ main = do
           then go mt' (n + 1)
           else do
             putStrLn "Start NN"
-            T.putStrLn $ ppNN nn
+            T.putStrLn $ display nn
             putStrLn "Start NN on dataset"
             print $ V.map (head . V.toList . forwardPropagate nn . fst) dataset
             putStrLn "Result NN"
-            T.putStrLn $ ppNN nn'
+            T.putStrLn $ display nn'
             putStrLn "Result NN on dataset"
             print $ V.map (head . V.toList . forwardPropagate nn' . fst) dataset
             return nn'
