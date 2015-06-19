@@ -20,12 +20,14 @@
 {-# LANGUAGE RankNTypes           #-}
 {-# LANGUAGE ScopedTypeVariables  #-}
 {-# LANGUAGE StandaloneDeriving   #-}
+{-# LANGUAGE TupleSections        #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module NN.Generic where
 
 import Control.Arrow
 import Control.Monad
+import Control.Monad.State
 import Control.DeepSeq
 import Data.Monoid
 import Data.Vector (Vector)
@@ -37,13 +39,13 @@ import Numeric.AD hiding (gradientDescent, Grad)
 
 import Data.VectClass (Vect)
 import qualified Data.VectClass as VC
+import Nonlinearity
+import Util
 
 import Data.Random.Distribution.Normal (stdNormal)
 import Data.Random.Sample (sample)
 import Data.Random.Source (MonadRandom)
 import Data.Random.Source.PureMT ()
-
-import Util
 
 data NN v n o a = NN (Vector (v (v a))) -- hidden layers
                      (v (v a))          -- final layer
@@ -97,8 +99,8 @@ makeNN :: forall m n o v. (Applicative m, MonadRandom m, Vect v, Nonlinearity n,
        -> [Int]
        -> Int
        -> m (NN v n o Double)
-makeNN firstLayerSize hiddenLayerSizes finalLayerSize = do
-  (lastHiddenSize, hiddenLayersRev) <- foldM f (firstLayerSize, V.empty) hiddenLayerSizes
+makeNN inputLayerSize hiddenLayerSizes finalLayerSize = do
+  (lastHiddenSize, hiddenLayersRev) <- foldM f (inputLayerSize, V.empty) hiddenLayerSizes
   finalLayer <- mkLayer finalLayerSize lastHiddenSize
   return $ NN (V.reverse hiddenLayersRev) finalLayer
   where
@@ -124,27 +126,65 @@ forwardPropagate nn@(NN hiddenLayers finalLayer) input =
   where
     f :: (a -> a) -> v a -> v (v a) -> v a
     f activation prev layer =
-      VC.map (\lr -> activation $
-                     VC.head lr + VC.dot prev (VC.tail lr))
+      VC.map (\ws -> activation $
+                     VC.head ws + VC.dot prev (VC.tail ws))
              layer
 
 targetFunction
-  :: (Vect v, Floating a, Mode a, Nonlinearity n, OutputType o n)
-  => Vector (v (Scalar a), v (Scalar a))
+  :: (Vect v, Floating a, Nonlinearity n, OutputType o n)
+  => Vector (v a, v a)
   -> NN v n o a
   -> a
 targetFunction dataset nn =
   V.sum $
   V.map (\(x, y) -> vectorSize $
                     VC.zipWith (-) (forwardPropagate nn x) y)
-        (V.map (VC.map auto *** VC.map auto) dataset)
+        dataset
 
 targetFunctionGrad
-  :: (Vect v, Nonlinearity n, OutputType o n)
-  => Vector (v Double, v Double)
-  -> NN v n o Double
-  -> (Double, Grad (NN v n o) Double)
-targetFunctionGrad dataset = \nn -> second Grad $ grad' (targetFunction dataset) nn
+  :: forall v n o a. (Vect v, Nonlinearity n, OutputType o n, Floating a)
+  => Vector (v a, v a)
+  -> NN v n o a
+  -> (a, Grad (NN v n o) a)
+targetFunctionGrad dataset =
+  \nn -> second Grad $ grad' (targetFunction' dataset) nn
+  where
+    targetFunction'
+      :: (Floating b, Mode b)
+      => Vector (v (Scalar b), v (Scalar b))
+      -> NN v n o b
+      -> b
+    targetFunction' dataset =
+      targetFunction (VC.map (VC.map auto *** VC.map auto) dataset)
+
+targetFunctionGradNumerical
+  :: forall v n o a. (Vect v, Nonlinearity n, OutputType o n, Floating a)
+  => a
+  -> Vector (v a, v a)
+  -> NN v n o a
+  -> (a, Grad (NN v n o) a)
+targetFunctionGradNumerical epsilon dataset nn =
+  (targetFunction dataset nn, Grad grad)
+  where
+    nn' :: NN v n o (Int, a, a, a)
+    nn' = evalState (traverse enum nn) 0
+    enum :: a -> State Int (Int, a, a, a)
+    enum x = (, x, x - epsilon, x + epsilon) <$> get <* modify (+1)
+
+    grad :: NN v n o a
+    grad = fmap calcGrad nn'
+
+    calcGrad :: (Int, a, a, a) -> a
+    calcGrad (n, _, xPrev, xNext) = (yNext - yPrev) / (2 * epsilon)
+      where
+        yPrev = targetFunction dataset (fmap (subst n xPrev) nn')
+        yNext = targetFunction dataset (fmap (subst n xNext) nn')
+
+        subst :: Int -> a -> (Int, a, b, b) -> a
+        subst n x (m, y, _, _)
+          | n == m    = x
+          | otherwise = y
+
 
 instance forall v n o a. (Vect v, Show a, Nonlinearity n, OutputType o n) => Pretty (NN v n o a) where
   pretty nn@(NN hiddenLayers finalLayer) =
@@ -157,9 +197,10 @@ instance forall v n o a. (Vect v, Show a, Nonlinearity n, OutputType o n) => Pre
     "OutputLayer: "  <> showLayer finalLayer
     where
       showLayer :: v (v a) -> Doc
-      showLayer = PP.vsep .
-                  map (PP.hcat . PP.punctuate PP.comma . map prettyShow . VC.toList) .
-                  VC.toList
+      showLayer =
+        PP.vsep .
+        map (PP.hcat . PP.punctuate PP.comma . map prettyShow . VC.toList) .
+        VC.toList
 
 vectorSize :: (Vect v, Floating a) => v a -> a
 vectorSize = sqrt . VC.sum . VC.map (\x -> x * x) -- (^(2 :: Int))

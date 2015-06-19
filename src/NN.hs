@@ -1,7 +1,7 @@
 ----------------------------------------------------------------------------
 -- |
 -- Module      :  NN
--- Copyright   :  (c) Sergey Vinokurov 2014
+-- Copyright   :  (c) Sergey Vinokurov 2015
 -- License     :  BSD3-style (see LICENSE)
 --
 -- Maintainer  :  serg.foo@gmail.com
@@ -11,219 +11,66 @@
 --
 ----------------------------------------------------------------------------
 
-{-# LANGUAGE DeriveFunctor       #-}
-{-# LANGUAGE DeriveFoldable      #-}
-{-# LANGUAGE DeriveGeneric       #-}
-{-# LANGUAGE DeriveTraversable   #-}
-{-# LANGUAGE EmptyDataDecls      #-}
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE NamedFieldPuns      #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE RankNTypes          #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE KindSignatures        #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 
 module NN where
 
-import Control.Applicative
-import Control.Arrow
-import Control.Monad
-import Control.DeepSeq
-import Data.Foldable (Foldable)
-import Data.List
-import Data.Monoid
-import Data.Traversable (Traversable)
-import Data.Text.Lazy (Text)
-import qualified Data.Text.Lazy as T
-import Data.Vector (Vector)
-import qualified Data.Vector as V
-import GHC.Generics
-import Text.PrettyPrint.Leijen.Text (Pretty(..), Doc)
-import qualified Text.PrettyPrint.Leijen.Text as PP
-
-import Numeric.AD hiding (gradientDescent, Grad)
-
-import Data.Random.Distribution.Normal (stdNormal)
-import Data.Random.Sample (sample)
 import Data.Random.Source (MonadRandom)
-import Data.Random.Source.PureMT ()
+import Data.Vector (Vector)
 
+import qualified Data.VectClass as VC
+import qualified NN.Generic as G
+import qualified NN.Specific as S
+import Nonlinearity
 import Util
 
-data HyperbolicTangent
-data Sigmoid
+class ZippableNN (nn :: * -> *) where
+  zipWith   :: (a -> b -> c) -> nn a -> nn b -> nn c
+  zipWith3  :: (a -> b -> c -> d) -> nn a -> nn b -> nn c -> nn d
+  zipWith4  :: (a -> b -> c -> d -> e) -> nn a -> nn b -> nn c -> nn d -> nn e
 
-data NonlinearityType a = HyperbolicTangent
-                        | Sigmoid
-                        deriving (Show, Eq, Ord, Generic)
+class NNVectorLike (nn :: * -> *) a where
+  -- z = x + b * y
+  -- addScaled :: (Floating a) => nn a -> a -> nn a -> nn a
+  -- size      :: (Floating a) => nn a ->  a
+  addScaled      :: nn a -> a -> nn a -> nn a
+  size           :: nn a -> a
+  differenceSize :: nn a -> nn a -> a
+  make           :: (MonadRandom m) => Int -> [Int] -> Int -> m (nn Double)
 
-prettyShow :: (Show a) => a -> Doc
-prettyShow = PP.text . T.pack . show
+class NeuralNetwork (nn :: * -> *) (v :: * -> *) a where
+  forwardPropagate :: nn a -> v a -> v a
+  targetFunctionGrad :: Vector (v a, v a) -> nn a -> (a, Grad nn a)
 
-instance Pretty (NonlinearityType a) where
-  pretty = prettyShow
+instance ZippableNN (S.NN n o) where
+  zipWith = S.nnZipWith
+  zipWith3 = S.nnZipWith3
+  zipWith4 = S.nnZipWith4
 
-instance NFData (NonlinearityType a)
+instance (VC.Vect v) => ZippableNN (G.NN v n o) where
+  zipWith = G.nnZipWith
+  zipWith3 = G.nnZipWith3
+  zipWith4 = G.nnZipWith4
 
-hyperbolicTangentNT :: NonlinearityType HyperbolicTangent
-hyperbolicTangentNT = HyperbolicTangent
+instance (Nonlinearity n, OutputType o n, Floating a) => NNVectorLike (S.NN n o) a where
+  addScaled      = S.addScaled
+  size           = S.nnSize
+  differenceSize = S.differenceSize
+  make           = S.makeNN
 
-sigmoidNT :: NonlinearityType Sigmoid
-sigmoidNT = Sigmoid
-
-data Linear
-data Nonlinear
-
-data OutputType a = Linear
-                  | Nonlinear
-                  deriving (Show, Eq, Ord, Generic)
-
-instance Pretty (OutputType a) where
-  pretty = prettyShow
-
-instance NFData (OutputType a)
-
-linearOut :: OutputType Linear
-linearOut = Linear
-
-nonlinearOut :: OutputType Nonlinear
-nonlinearOut = Nonlinear
+instance (Nonlinearity n, OutputType o n, Floating a) => NeuralNetwork (S.NN n o) Vector a where
+  forwardPropagate   = S.forwardPropagate
+  targetFunctionGrad = S.targetFunctionGrad
 
 
--- data NonlinearityType a where
---   HyperbolicTangent :: NonlinearityType HyperbolicTangent
---   Sigmoid :: NonlinearityType Sigmoid
---
--- deriving instance (Show (NonlinearityType a))
--- deriving instance (Eq (NonlinearityType a))
--- deriving instance (Ord (NonlinearityType a))
+instance (Nonlinearity n, OutputType o n, VC.Vect v, Floating a) => NNVectorLike (G.NN v n o) a where
+  addScaled      = G.addScaled
+  size           = G.nnSize
+  differenceSize = G.differenceSize
+  make           = G.makeNN
 
-data NN n o a = NN {-# UNPACK #-} !(NonlinearityType n)
-                   {-# UNPACK #-} !(OutputType o)
-                   [Vector (Vector a)] -- hidden layers
-                   (Vector (Vector a)) -- final layer
-              deriving (Show, Eq, Ord, Functor, Foldable, Traversable)
-
-instance (NFData a) => NFData (NN n o a) where
-  rnf (NN n o xs fin) = rnf n `seq` rnf o `seq` rnf xs `seq` rnf fin
-
-nnZipWith :: (a -> b -> c) -> NN n o a -> NN n o b -> NN n o c
-nnZipWith f (NN nonlinType outType xs finX) (NN _ _ ys finY) =
-  NN nonlinType
-     outType
-     (zipWith zipLayers xs ys)
-     (zipLayers finX finY)
-  where
-    zipLayers = V.zipWith (V.zipWith f)
-
-nnZipWith3 :: (a -> b -> c -> d) -> NN n o a -> NN n o b -> NN n o c -> NN n o d
-nnZipWith3 f (NN nonlinType outType xs finX) (NN _ _ ys finY) (NN _ _ zs finZ) =
-  NN nonlinType
-     outType
-     (zipWith3 zipLayers xs ys zs)
-     (zipLayers finX finY finZ)
-  where
-    zipLayers = V.zipWith3 (V.zipWith3 f)
-
-nnZipWith4 :: (a -> b -> c -> d -> e) -> NN n o a -> NN n o b -> NN n o c -> NN n o d -> NN n o e
-nnZipWith4 f (NN nonlinType outType xs finX) (NN _ _ ys finY) (NN _ _ zs finZ) (NN _ _ ws finW) =
-  NN nonlinType
-     outType
-     (zipWith4 zipLayers xs ys zs ws)
-     (zipLayers finX finY finZ finW)
-  where
-    zipLayers = V.zipWith4 (V.zipWith4 f)
-
--- nnZ = b * nnX + NNy
-addScaled :: (Floating a) => NN n o a -> a -> NN n o a -> NN n o a
--- addScaled b (NN xs) (NN ys) = NN $ zipWith (\x y -> V.zipWith (\x' y' -> V.zipWith () x' y') x y) xs ys
-addScaled nn b addend = nnZipWith (\x y -> x + b * y) nn addend
-
-nnSize :: (Floating a) => NN n o a -> a
-nnSize (NN _ _ layers fin) =
-  sqrt $ sum (map layerSize layers) + layerSize fin
-  where
-    layerSize = V.sum . V.map (V.sum . V.map (^(2 :: Int)))
-
-differenceSize :: (Floating a) => NN n o a -> NN n o a -> a
-differenceSize xs ys = nnSize $ addScaled xs (-1) ys
-
--- layer size should be specified without accounting for bias
-makeNN :: forall m n o. (Applicative m, MonadRandom m) =>
-          NonlinearityType n ->
-          OutputType o       ->
-          Int                ->
-          [Int]              ->
-          Int                ->
-          m (NN n o Double)
-makeNN nonlinType outType firstLayerSize hiddenLayerSizes finalLayerSize = do
-  (lastHiddenSize, hiddenLayers) <- second reverse <$> foldM f (firstLayerSize, []) hiddenLayerSizes
-  finalLayer <- mkLayer finalLayerSize lastHiddenSize
-  return $ NN nonlinType outType hiddenLayers finalLayer
-  where
-    mkLayer :: Int -> Int -> m (Vector (Vector Double))
-    mkLayer size prevSize = V.replicateM size (V.replicateM prevSizeWithBias (sample stdNormal))
-      where
-        prevSizeWithBias = prevSize + 1
-
-    f :: (Int, [Vector (Vector Double)]) -> Int -> m (Int, [Vector (Vector Double)])
-    f (prevSize, layers) size = do
-      layer <- mkLayer size prevSize
-      return (size, layer : layers)
-
-nonlinearity :: (Floating a) => NonlinearityType n -> a -> a
-nonlinearity HyperbolicTangent x = tanh x
-nonlinearity Sigmoid           x = x' / (1 + x')
-  where
-    x' = exp x
-
-output :: (Floating a) => NonlinearityType n -> OutputType o -> a -> a
-output _      Linear    = id
-output nonlin Nonlinear = nonlinearity nonlin
-
-forwardPropagate :: (Floating a) => NN n o a -> Vector a -> Vector a
-forwardPropagate (NN nonlinType outType hiddenLayers finalLayer) input =
-  f (output nonlinType outType)
-    (foldl' (f (nonlinearity nonlinType)) input hiddenLayers)
-    finalLayer
-  where
-    f activation prev layer =
-      V.map (\lr -> seqIt $
-                    activation $
-                    V.head lr + dot prev (V.tail lr))
-            layer
-
-targetFunction :: (Floating a, Mode a) =>
-                  [(Vector (Scalar a), Vector (Scalar a))] ->
-                  NN n o a                                 ->
-                  a
-targetFunction dataset nn =
-  sum $
-  map (\(x, y) -> vectorSize $
-                  V.zipWith (-) (forwardPropagate nn x) y)
-      (map (V.map auto *** V.map auto) dataset)
-
-targetFunctionGrad :: [(Vector Double, Vector Double)] ->
-                      NN n o Double                    ->
-                      (Double, Grad (NN n o) Double)
-targetFunctionGrad dataset = \nn -> second Grad $ grad' (targetFunction dataset) nn
-
-instance forall n o a. (Show a) => Pretty (NN n o a) where
-  pretty (NN nonlinType outType hiddenLayers finalLayer) =
-    "Nonlinearity: " <> prettyShow nonlinType <> PP.line <>
-    "Output: "       <> prettyShow outType    <> PP.line <>
-    "HiddenLayers: " <> prettyShow outType    <> PP.line <>
-                        (combine $
-                         PP.punctuate (PP.line <> PP.line) $
-                         map showLayer hiddenLayers) <> PP.line <>
-    "OutputLayer: "  <> showLayer finalLayer
-    where
-      showLayer :: Vector (Vector a) -> Doc
-      showLayer = PP.vsep .
-                  map (combine . PP.punctuate PP.comma . map prettyShow . V.toList) .
-                  V.toList
-
-      combine = foldr (<>) PP.empty
-
-ppNN :: forall a n o. (Show a) => NN n o a -> Text
-ppNN nn = PP.displayT $ PP.renderPretty 0.8 80 $ pretty nn
-
+instance (Nonlinearity n, OutputType o n, VC.Vect v, Floating a) => NeuralNetwork (G.NN v n o) v a where
+  forwardPropagate   = G.forwardPropagate
+  targetFunctionGrad = G.targetFunctionGrad

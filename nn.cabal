@@ -11,25 +11,26 @@ build-type:          Simple
 cabal-version:       >=1.10
 
 library
-  exposed-modules:   Data.VectClass
-                     LearningAlgorithms
-                     NN.Generic
-                     NN.Specific
-                     Util
-  build-depends:     base >=4.6, text, mtl, vector,
-                     ad, random-source, random-fu, free, deepseq,
-                     wl-pprint-text
-  -- containers, mtl, text, wl-pprint-text
-  default-language:  Haskell2010
-  hs-source-dirs:    src
-  ghc-options:       -W -Wall
-                     -fwarn-monomorphism-restriction
-                     -fno-warn-name-shadowing
-                     -ferror-spans
-                     -rtsopts
-                     -fllvm -O2 -optlc=-O3 -optlo=-O3
-                     -- -funfolding-creation-threshold=1000  -funfolding-use-threshold=1000
-  ghc-prof-options:  -fprof-auto
+  exposed-modules:     Data.VectClass
+                       LearningAlgorithms
+                       NN
+                       NN.Generic
+                       NN.Specific
+                       Nonlinearity
+                       Util
+  build-depends:       base >=4.6, text, mtl, vector, random,
+                       ad, random-source, random-fu, free, deepseq,
+                       wl-pprint-text
+  default-language:    Haskell2010
+  hs-source-dirs:      src
+  ghc-options:         -W -Wall
+                       -fwarn-monomorphism-restriction
+                       -fno-warn-name-shadowing
+                       -ferror-spans
+                       -rtsopts
+                       -- -fllvm -O2 -optlc=-O3 -optlo=-O3
+                       -- -funfolding-creation-threshold=1000  -funfolding-use-threshold=1000
+  ghc-prof-options:    -fprof-auto
 
 executable nn
   main-is:             src/Main.hs
@@ -46,7 +47,15 @@ executable nn
                        -fno-warn-name-shadowing
                        -ferror-spans
                        -rtsopts
-                       -fllvm -O2 -optlc=-O3 -optlo=-O3
+                       -- -fllvm -O2 -optlc=-O3 -optlo=-O3
                        -- -funfolding-creation-threshold=1000  -funfolding-use-threshold=1000
   ghc-prof-options:    -fprof-auto
 
+test-suite test-nn
+  type:                exitcode-stdio-1.0
+  main-is:             Main.hs
+  hs-source-dirs:      tests
+  default-language:    Haskell2010
+  build-depends:       base >= 3 && < 5, vector, mtl, random-source,
+                       tasty, tasty-hunit,
+                       nn

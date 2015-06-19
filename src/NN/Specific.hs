@@ -19,12 +19,14 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections       #-}
 
 module NN.Specific where
 
 import Control.Arrow
 import Control.Monad
 import Control.DeepSeq
+import Control.Monad.State
 import Data.Monoid
 import Data.Vector (Vector)
 import qualified Data.Vector as V
@@ -33,16 +35,24 @@ import qualified Text.PrettyPrint.Leijen.Text as PP
 
 import Numeric.AD hiding (gradientDescent, Grad)
 
-import Data.Random.Distribution.Normal (stdNormal)
+import Data.Random.Distribution (Distribution)
+import Data.Random.Distribution.Normal (Normal, stdNormal)
 import Data.Random.Sample (sample)
 import Data.Random.Source (MonadRandom)
 import Data.Random.Source.PureMT ()
 
+import Nonlinearity
 import Util
 
-data NN n o a = NN (Vector (Vector (Vector a))) -- hidden layers
-                   (Vector (Vector a))          -- final layer
-              deriving (Show, Eq, Ord, Functor, Foldable, Traversable)
+data NN n o a =
+  NN
+    -- ^ Hidden layers, starting from the first on. Each layer is an m by n matrix,
+    -- where m ranges over neurons in this layer and n depends on number of neurons
+    -- in previous layer plus 1.
+    (Vector (Vector (Vector a)))
+    -- ^ Final layer.
+    (Vector (Vector a))
+  deriving (Show, Eq, Ord, Functor, Foldable, Traversable)
 
 instance (NFData a) => NFData (NN n o a) where
   rnf (NN xs fin) = rnf xs `seq` rnf fin
@@ -83,56 +93,99 @@ differenceSize :: (Floating a) => NN n o a -> NN n o a -> a
 differenceSize xs ys = nnSize $ addScaled xs (-1) ys
 
 -- layer size should be specified without accounting for bias
-makeNN :: forall m n o. (MonadRandom m) =>
-          Int                ->
-          [Int]              ->
-          Int                ->
-          m (NN n o Double)
-makeNN firstLayerSize hiddenLayerSizes finalLayerSize = do
-  (lastHiddenSize, hiddenLayersRev) <- foldM f (firstLayerSize, V.empty) hiddenLayerSizes
-  finalLayer <- mkLayer finalLayerSize lastHiddenSize
+makeNN
+  :: forall m n o a. (MonadRandom m, Distribution Normal a)
+  => Int
+  -> [Int]
+  -> Int
+  -> m (NN n o a)
+makeNN inputLayerSize hiddenLayerSizes finalLayerSize = do
+  (lastHiddenSize, hiddenLayersRev) <- foldM f (inputLayerSize, V.empty) hiddenLayerSizes
+  finalLayer                        <- mkLayer finalLayerSize lastHiddenSize
   return $ NN (V.reverse hiddenLayersRev) finalLayer
   where
-    mkLayer :: Int -> Int -> m (Vector (Vector Double))
+    mkLayer :: Int -> Int -> m (Vector (Vector a))
     mkLayer size prevSize = V.replicateM size (V.replicateM prevSizeWithBias (sample stdNormal))
       where
         prevSizeWithBias = prevSize + 1
 
-    f :: (Int, Vector (Vector (Vector Double))) -> Int -> m (Int, Vector (Vector (Vector Double)))
+    f :: (Int, Vector (Vector (Vector a))) -> Int -> m (Int, Vector (Vector (Vector a)))
     f (prevSize, layers) size = do
       layer <- mkLayer size prevSize
       return (size, V.cons layer layers)
 
-forwardPropagate :: (Floating a, Nonlinearity n, OutputType o n) => NN n o a -> Vector a -> Vector a
+{-# SPECIALIZE forwardPropagate :: (OutputType o n) => NN n o Double -> Vector Double -> Vector Double #-}
+forwardPropagate
+  :: forall a n o. (Floating a, Nonlinearity n, OutputType o n)
+  => NN n o a
+  -> Vector a
+  -> Vector a
 forwardPropagate nn@(NN hiddenLayers finalLayer) input =
   f (output nn)
     (V.foldl' (f (nonlinearity nn)) input hiddenLayers)
     finalLayer
   where
+    f :: (a -> a) -> Vector a -> Vector (Vector a) -> Vector a
     f activation prev layer =
-      V.map (\lr -> activation $
-                    V.head lr + dot prev (V.tail lr))
+      V.map (\ws -> activation $
+                    V.head ws + dot prev (V.tail ws))
             layer
 
 targetFunction
-  :: (Floating a, Mode a, Nonlinearity n, OutputType o n)
-  => Vector (Vector (Scalar a), Vector (Scalar a))
+  :: (Floating a, Nonlinearity n, OutputType o n)
+  => Vector (Vector a, Vector a)
   -> NN n o a
   -> a
 targetFunction dataset nn =
   V.sum $
   V.map (\(x, y) -> vectorSize $
                     V.zipWith (-) (forwardPropagate nn x) y)
-        (V.map (V.map auto *** V.map auto) dataset)
+        dataset
 
 targetFunctionGrad
-  :: (Nonlinearity n, OutputType o n)
-  => Vector (Vector Double, Vector Double)
-  -> NN n o Double
-  -> (Double, Grad (NN n o) Double)
-targetFunctionGrad dataset = \nn -> second Grad $ grad' (targetFunction dataset) nn
+  :: forall n o a. (Nonlinearity n, OutputType o n, Floating a)
+  => Vector (Vector a, Vector a)
+  -> NN n o a
+  -> (a, Grad (NN n o) a)
+targetFunctionGrad dataset = \nn -> second Grad $ grad' (targetFunction' dataset) nn
+  where
+    targetFunction'
+      :: (Floating b, Mode b, Nonlinearity n, OutputType o n)
+      => Vector (Vector (Scalar b), Vector (Scalar b))
+      -> NN n o b
+      -> b
+    targetFunction' dataset =
+      targetFunction (V.map (V.map auto *** V.map auto) dataset)
 
-instance forall n o a. (Show a, Nonlinearity n, OutputType o n) => Pretty (NN n o a) where
+targetFunctionGradNumerical
+  :: forall n o a. (Nonlinearity n, OutputType o n, Floating a)
+  => a
+  -> Vector (Vector a, Vector a)
+  -> NN n o a
+  -> (a, Grad (NN n o) a)
+targetFunctionGradNumerical epsilon dataset nn =
+  (targetFunction dataset nn, Grad grad)
+  where
+    nn' :: NN n o (Int, a, a, a)
+    nn' = evalState (traverse enum nn) 0
+    enum :: a -> State Int (Int, a, a, a)
+    enum x = (, x, x - epsilon, x + epsilon) <$> get <* modify (+1)
+
+    grad :: NN n o a
+    grad = fmap calcGrad nn'
+
+    calcGrad :: (Int, a, a, a) -> a
+    calcGrad (n, _, xPrev, xNext) = (yNext - yPrev) / (2 * epsilon)
+      where
+        yPrev = targetFunction dataset (fmap (subst n xPrev) nn')
+        yNext = targetFunction dataset (fmap (subst n xNext) nn')
+
+        subst :: Int -> a -> (Int, a, b, b) -> a
+        subst n x (m, y, _, _)
+          | n == m    = x
+          | otherwise = y
+
+instance forall n o a. (Nonlinearity n, OutputType o n, Show a) => Pretty (NN n o a) where
   pretty nn@(NN hiddenLayers finalLayer) =
     "Nonlinearity: " <> ppNonlinearity nn  <> PP.line <>
     "Output: "       <> ppOutput nn        <> PP.line <>
@@ -143,14 +196,21 @@ instance forall n o a. (Show a, Nonlinearity n, OutputType o n) => Pretty (NN n 
     "OutputLayer: "  <> showLayer finalLayer
     where
       showLayer :: Vector (Vector a) -> Doc
-      showLayer = PP.vsep .
-                  map (PP.hcat . PP.punctuate PP.comma . map prettyShow . V.toList) .
-                  V.toList
+      showLayer =
+        PP.vsep .
+        map (PP.hcat . PP.punctuate PP.comma . map prettyShow . V.toList) .
+        V.toList
 
 dot :: (Floating a) => Vector a -> Vector a -> a
-dot xs ys = if V.length xs /= V.length ys
-            then error "cannot take dot products for vectors of different length"
-            else V.foldr (+) 0 $ V.zipWith (*) xs ys
+dot xs ys
+  | xsLen /= ysLen =
+    error $ "cannot take dot products for vectors of different length: " ++
+      "|xs| = " ++ show xsLen ++ ", |ys| = " ++ show ysLen
+  | otherwise      =
+    V.foldr (+) 0 $ V.zipWith (*) xs ys
+  where
+    xsLen = V.length xs
+    ysLen = V.length ys
 
 vectorSize :: (Floating a) => Vector a -> a
 vectorSize = sqrt . V.sum . V.map (\x -> x * x) -- (^(2 :: Int))

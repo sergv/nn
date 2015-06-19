@@ -48,6 +48,7 @@ import Graphics.Rendering.Chart.Backend.Cairo
 import LearningAlgorithms
 import NN.Specific
 import qualified NN.Generic as NG
+import Nonlinearity
 import Util
 
 
@@ -94,9 +95,9 @@ main = do
   let nn        = evalState mkSpecificNN mt
       rpropData = rprop standardDeltaInfo nn trainDataset
   let nnGVec        = evalState mkGenericVectorNN mt
-      rpropDataGVec = rprop' standardDeltaInfo nnGVec trainDataset
+      rpropDataGVec = rprop standardDeltaInfo nnGVec trainDataset
   let nnGList        = evalState mkGenericListNN mt
-      rpropDataGList = rprop' standardDeltaInfo nnGList $ V.map (V.toList *** V.toList) trainDataset
+      rpropDataGList = rprop standardDeltaInfo nnGList $ V.map (V.toList *** V.toList) trainDataset
   defaultMainWith criterionConfig [
       bench "rprop specific" $ nf (constantUpdates rpropData 100) nn
     , bench "rprop generic - Vector" $ nf (constantUpdates rpropDataGVec 100) nnGVec
