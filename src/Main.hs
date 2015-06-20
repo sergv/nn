@@ -35,6 +35,8 @@ import Text.Printf
 import Criterion.Main
 import Criterion.Types
 
+import Data.Random.Distribution.Normal (stdNormal)
+import Data.Random.Sample (sample)
 import Data.Random.Source (MonadRandom)
 import Data.Random.Source.PureMT (PureMT, pureMT)
 
@@ -80,15 +82,15 @@ criterionConfig =
                 }
 
 mkSpecificNN :: (Applicative m, MonadRandom m) => m (NN HyperbolicTangent Nonlinear Double)
-mkSpecificNN = makeNN 1 [10, 10] 1
+mkSpecificNN = makeNN 1 [10, 10] 1 (sample stdNormal)
 -- for sine dataset
 -- mkSpecificNN = makeNN hyperbolicTangentNT nonlinearOut 1 [2, 2] 1
 
 mkGenericVectorNN :: (Applicative m, MonadRandom m) => m (NG.NN Vector HyperbolicTangent Nonlinear Double)
-mkGenericVectorNN = NG.makeNN 1 [10, 10] 1
+mkGenericVectorNN = NG.makeNN 1 [10, 10] 1 (sample stdNormal)
 
 mkGenericListNN :: (Applicative m, MonadRandom m) => m (NG.NN [] HyperbolicTangent Nonlinear Double)
-mkGenericListNN = NG.makeNN 1 [10, 10] 1
+mkGenericListNN = NG.makeNN 1 [10, 10] 1 (sample stdNormal)
 
 main :: IO ()
 main = do

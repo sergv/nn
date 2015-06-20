@@ -42,8 +42,6 @@ import qualified Data.VectClass as VC
 import Nonlinearity
 import Util
 
-import Data.Random.Distribution.Normal (stdNormal)
-import Data.Random.Sample (sample)
 import Data.Random.Source (MonadRandom)
 import Data.Random.Source.PureMT ()
 
@@ -94,22 +92,23 @@ differenceSize :: (Vect v, Floating a) => NN v n o a -> NN v n o a -> a
 differenceSize xs ys = nnSize $ addScaled xs (-1) ys
 
 -- layer size should be specified without accounting for bias
-makeNN :: forall m n o v. (Applicative m, MonadRandom m, Vect v, Nonlinearity n, OutputType o n)
+makeNN :: forall m n o v a. (Applicative m, MonadRandom m, Vect v, Nonlinearity n, OutputType o n)
        => Int
        -> [Int]
        -> Int
-       -> m (NN v n o Double)
-makeNN inputLayerSize hiddenLayerSizes finalLayerSize = do
+       -> m a
+       -> m (NN v n o a)
+makeNN inputLayerSize hiddenLayerSizes finalLayerSize mkElem = do
   (lastHiddenSize, hiddenLayersRev) <- foldM f (inputLayerSize, V.empty) hiddenLayerSizes
   finalLayer <- mkLayer finalLayerSize lastHiddenSize
   return $ NN (V.reverse hiddenLayersRev) finalLayer
   where
-    mkLayer :: Int -> Int -> m (v (v Double))
-    mkLayer size prevSize = VC.replicateM size (VC.replicateM prevSizeWithBias (sample stdNormal))
+    mkLayer :: Int -> Int -> m (v (v a))
+    mkLayer size prevSize = VC.replicateM size (VC.replicateM prevSizeWithBias mkElem)
       where
         prevSizeWithBias = prevSize + 1
 
-    f :: (Int, Vector (v (v Double))) -> Int -> m (Int, Vector (v (v Double)))
+    f :: (Int, Vector (v (v a))) -> Int -> m (Int, Vector (v (v a)))
     f (prevSize, layers) size = do
       layer <- mkLayer size prevSize
       return (size, V.cons layer layers)

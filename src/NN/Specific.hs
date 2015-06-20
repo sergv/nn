@@ -35,9 +35,6 @@ import qualified Text.PrettyPrint.Leijen.Text as PP
 
 import Numeric.AD hiding (gradientDescent, Grad)
 
-import Data.Random.Distribution (Distribution)
-import Data.Random.Distribution.Normal (Normal, stdNormal)
-import Data.Random.Sample (sample)
 import Data.Random.Source (MonadRandom)
 import Data.Random.Source.PureMT ()
 
@@ -78,14 +75,18 @@ nnZipWith4 f (NN xs finX) (NN ys finY) (NN zs finZ) (NN ws finW) =
   where
     zipLayers = V.zipWith4 (V.zipWith4 f)
 
--- nnZ = b * nnX + NNy
-addScaled :: (Floating a) => NN n o a -> a -> NN n o a -> NN n o a
+add :: forall a n o. (Floating a) => NN n o a -> NN n o a -> NN n o a
 -- addScaled b (NN xs) (NN ys) = NN $ zipWith (\x y -> V.zipWith (\x' y' -> V.zipWith () x' y') x y) xs ys
-addScaled nn b addend = nnZipWith (\x y -> x + b * y) nn addend
+add nn addend = nnZipWith (+!) nn addend
+
+-- nnZ = b * nnX + NNy
+addScaled :: forall a n o. (Floating a) => NN n o a -> a -> NN n o a -> NN n o a
+-- addScaled b (NN xs) (NN ys) = NN $ zipWith (\x y -> V.zipWith (\x' y' -> V.zipWith () x' y') x y) xs ys
+addScaled nn b addend = nnZipWith (\x y -> x +! b *! y) nn addend
 
 nnSize :: (Floating a) => NN n o a -> a
 nnSize (NN layers fin) =
-  sqrt $ V.sum (V.map layerSize layers) + layerSize fin
+  sqrt $ V.sum (V.map layerSize layers) +! layerSize fin
   where
     layerSize = V.sum . V.map (V.sum . V.map (^(2 :: Int)))
 
@@ -94,18 +95,19 @@ differenceSize xs ys = nnSize $ addScaled xs (-1) ys
 
 -- layer size should be specified without accounting for bias
 makeNN
-  :: forall m n o a. (MonadRandom m, Distribution Normal a)
+  :: forall m n o a. (MonadRandom m)
   => Int
   -> [Int]
   -> Int
+  -> m a
   -> m (NN n o a)
-makeNN inputLayerSize hiddenLayerSizes finalLayerSize = do
+makeNN inputLayerSize hiddenLayerSizes finalLayerSize mkElem = do
   (lastHiddenSize, hiddenLayersRev) <- foldM f (inputLayerSize, V.empty) hiddenLayerSizes
   finalLayer                        <- mkLayer finalLayerSize lastHiddenSize
   return $ NN (V.reverse hiddenLayersRev) finalLayer
   where
     mkLayer :: Int -> Int -> m (Vector (Vector a))
-    mkLayer size prevSize = V.replicateM size (V.replicateM prevSizeWithBias (sample stdNormal))
+    mkLayer size prevSize = V.replicateM size (V.replicateM prevSizeWithBias mkElem)
       where
         prevSizeWithBias = prevSize + 1
 
@@ -128,7 +130,7 @@ forwardPropagate nn@(NN hiddenLayers finalLayer) input =
     f :: (a -> a) -> Vector a -> Vector (Vector a) -> Vector a
     f activation prev layer =
       V.map (\ws -> activation $
-                    V.head ws + dot prev (V.tail ws))
+                    V.head ws +! dot prev (V.tail ws))
             layer
 
 targetFunction
@@ -138,8 +140,8 @@ targetFunction
   -> a
 targetFunction dataset nn =
   V.sum $
-  V.map (\(x, y) -> vectorSize $
-                    V.zipWith (-) (forwardPropagate nn x) y)
+  V.map (\(x, y) -> vectorSize' $
+                    V.zipWith (-!) (forwardPropagate nn x) y)
         dataset
 
 targetFunctionGrad
@@ -156,6 +158,145 @@ targetFunctionGrad dataset = \nn -> second Grad $ grad' (targetFunction' dataset
       -> b
     targetFunction' dataset =
       targetFunction (V.map (V.map auto *** V.map auto) dataset)
+
+backprop
+  :: forall n o a. (Nonlinearity n, OutputType o n, Floating a)
+  => Vector (Vector a, Vector a)
+  -> NN n o a
+  -> (a, Grad (NN n o) a)
+backprop dataset = go
+  where
+    go :: NN n o a -> (a, Grad (NN n o) a)
+    go nn@(NN _hiddenLayerWeights finalLayerWeights) =
+      V.foldr'
+        combineAdd
+        (0, zeroGrad)
+        (fmap (uncurry computeSample) dataset)
+      where
+        zeroGrad :: Grad (NN n o) a
+        zeroGrad = Grad (fmap (const 0) nn)
+
+        computeSample :: Vector a -> Vector a -> (a, Grad (NN n o) a)
+        computeSample x y
+          | V.length prediction /= V.length y =
+            error "Size mismatch between network prediction and expected output"
+          | V.length finalLayer /= V.length finalLayerWeights =
+            error "Size mismatch between final layer sums and final layer neurons"
+          | otherwise =
+            (err, Grad $ NN hiddenLayerDerivs finalDerivs)
+          where
+            -- NB full neurons of hidden layers can be obtained by using
+            -- V.snoc hiddenLayersNeurons prefinalNeuronLayer
+            hiddenLayersNeurons :: Vector (Vector (a, a, Vector a))
+            (hiddenLayersNeurons, prefinalNeuronLayer, finalLayer) = forwardProp nn x
+            prediction :: Vector a
+            prediction = fmap (\(x, _deds, _ws) -> x) finalLayer
+            mismatch :: Vector a
+            mismatch = V.zipWith (-!) prediction y
+            err :: a
+            err = vectorSize' mismatch
+            finalDeltas :: Vector a
+            finalDeltas = V.zipWith
+                            (\m d -> 2 *! m *! d)
+                            mismatch
+                            (V.map (\(_x, deds, _ws) -> deds) finalLayer)
+            finalDerivs :: Vector (Vector a)
+            finalDerivs = mkLayerDeriv finalDeltas prefinalNeuronLayer
+
+            _prefinalLayerDelta :: Vector a
+            prefinalDeltaWithLayer@(_prefinalLayerDelta, _) =
+              mkDelta prefinalNeuronLayer (finalDeltas, finalLayer)
+
+            -- Includes prefinalLayerDelta at the end. Does not need
+            -- to include deltas for input layer since they won't be used
+            hiddenLayerDeltas :: Vector (Vector a)
+            hiddenLayerDeltas =
+              V.map fst $
+              -- Same as V.tail $ V.scanr' ...
+              V.prescanr' mkDelta prefinalDeltaWithLayer hiddenLayersNeurons
+              -- Old version
+              -- V.scanr' mkDelta prefinalDeltaWithLayer hiddenLayersNeurons
+
+            -- Zipping deltas for all but first layer and neuron values for
+            -- all but prefinal layer.
+            hiddenLayerDerivs :: Vector (Vector (Vector a))
+            hiddenLayerDerivs =
+              V.zipWith mkLayerDeriv hiddenLayerDeltas hiddenLayersNeurons
+
+            mkLayerDeriv :: Vector a -> Vector (a, a, Vector a) -> Vector (Vector a)
+            mkLayerDeriv deltas prevLayer =
+              V.map (\delta -> V.cons delta $ V.map (\(x, _deds, _ws) -> delta *! x) prevLayer) deltas
+
+            mkDelta
+              :: Vector (a, a, Vector a)
+              -> (Vector a, Vector (a, a, Vector a))
+              -> (Vector a, Vector (a, a, Vector a))
+            mkDelta layer (deltas', layer') = (deltas, layer)
+              where
+                deltas :: Vector a
+                deltas =
+                  V.zipWith (\(_x, deds, _ws) weightedDeltas -> weightedDeltas *! deds) layer $
+                  V.foldr1 (V.zipWith (+!)) $
+                  V.zipWith (\(_, _, ws) delta ->
+                               -- Ignore first weight since that's the weight for constant bias.
+                               -- And there's no delta for bias.
+                               V.map (*! delta) $ V.tail ws) layer' deltas'
+
+        combineAdd :: (a, Grad (NN n o) a) -> (a, Grad (NN n o) a) -> (a, Grad (NN n o) a)
+        combineAdd (x, Grad g) (x', Grad g') = (x +! x', Grad $ add g g')
+
+    forwardProp
+      :: NN n o a
+      -> Vector a
+      -> (Vector (Vector (a, a, Vector a)), Vector (a, a, Vector a), Vector (a, a, Vector a))
+    forwardProp nn@(NN hiddenLayersWeights finalLayerWeights) input =
+      (neuronValues', prefinalNeuronLayer, finalLayer)
+      where
+        neuronValues :: Vector (Vector (a, a, Vector a))
+        neuronValues =
+          V.scanl'
+            f
+            -- (fmap (\x -> (x, 1, error "no weights before input layer")) input)
+            (fmap (\x -> (x, 1, V.empty)) input)
+            hiddenLayersWeights
+
+        neuronValues' = V.unsafeInit neuronValues
+        prefinalNeuronLayer :: Vector (a, a, Vector a)
+        prefinalNeuronLayer = V.unsafeLast neuronValues
+        -- (neuronValues', prefinalNeuronLayer) = V.splitAt (V.length neuronValues - 1) neuronValues
+
+        finalLayer :: Vector (a, a, Vector a)
+        finalLayer = g prefinalNeuronLayer finalLayerWeights
+
+        f :: Vector (a, a, Vector a) -> Vector (Vector a) -> Vector (a, a, Vector a)
+        f prevLayer layer = V.map useLayer layer
+          where
+            useLayer :: Vector a -> (a, a, Vector a)
+            useLayer ws = (x, deds, ws)
+              where
+                s    = V.head ws +! dot' prevLayer (V.tail ws)
+                x    = nonlinearity nn s
+                deds = nonlinearityDeriv nn x s
+
+        g :: Vector (a, a, Vector a) -> Vector (Vector a) -> Vector (a, a, Vector a)
+        g prevLayer layer =
+          V.map (\ws -> let s    = V.head ws +! dot' prevLayer (V.tail ws)
+                            x    = output nn s
+                            deds = outputDeriv nn x s
+                        in (x, deds, ws))
+                layer
+
+        dot' :: Vector (a, b, c) -> Vector a -> a
+        dot' xs ys
+          | xsLen /= ysLen =
+            error $ "dot': cannot take dot products for vectors of different length: " ++
+              "|xs| = " ++ show xsLen ++ ", |ys| = " ++ show ysLen
+          | otherwise      =
+            V.foldr (+!) 0 $ V.zipWith (\(x, _deds, _ws) y -> x *! y) xs ys
+          where
+            xsLen = V.length xs
+            ysLen = V.length ys
+
 
 targetFunctionGradNumerical
   :: forall n o a. (Nonlinearity n, OutputType o n, Floating a)
@@ -201,17 +342,24 @@ instance forall n o a. (Nonlinearity n, OutputType o n, Show a) => Pretty (NN n 
         map (PP.hcat . PP.punctuate PP.comma . map prettyShow . V.toList) .
         V.toList
 
-dot :: (Floating a) => Vector a -> Vector a -> a
+dot :: forall a. (Floating a) => Vector a -> Vector a -> a
 dot xs ys
   | xsLen /= ysLen =
-    error $ "cannot take dot products for vectors of different length: " ++
+    error $ "dot: cannot take dot products for vectors of different length: " ++
       "|xs| = " ++ show xsLen ++ ", |ys| = " ++ show ysLen
   | otherwise      =
-    V.foldr (+) 0 $ V.zipWith (*) xs ys
+    V.foldr (+!) 0 $ V.zipWith (*!) xs ys
   where
     xsLen = V.length xs
     ysLen = V.length ys
 
+{-# INLINABLE vectorSize #-}
 vectorSize :: (Floating a) => Vector a -> a
-vectorSize = sqrt . V.sum . V.map (\x -> x * x) -- (^(2 :: Int))
+vectorSize = sqrt . vectorSize'
 
+{-# INLINABLE vectorSize' #-}
+vectorSize' :: (Floating a) => Vector a -> a
+vectorSize' = V.sum . V.map (\x -> x *! x) -- (^(2 :: Int))
+
+-- instance (Pretty a) => Pretty (Vector a) where
+--   pretty = pretty . V.toList

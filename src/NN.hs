@@ -38,7 +38,7 @@ class NNVectorLike (nn :: * -> *) a where
   addScaled      :: nn a -> a -> nn a -> nn a
   size           :: nn a -> a
   differenceSize :: nn a -> nn a -> a
-  make           :: (MonadRandom m) => Int -> [Int] -> Int -> m (nn Double)
+  make           :: (MonadRandom m) => Int -> [Int] -> Int -> m a -> m (nn a)
 
 class NeuralNetwork (nn :: * -> *) (v :: * -> *) a where
   forwardPropagate :: nn a -> v a -> v a

@@ -38,5 +38,40 @@ prettyShow :: (Show a) => a -> Doc
 prettyShow = PP.text . T.pack . show
 
 display :: (Pretty a) => a -> Text
-display = PP.displayT . PP.renderPretty 0.8 80 . PP.pretty
+display = PP.displayT . PP.renderPretty 0.9 100 . PP.pretty
+
+display' :: (Pretty a) => a -> String
+display' = T.unpack . display
+
+{-# INLINABLE (+!) #-}
+(+!) :: (Num a) => a -> a -> a
+(+!) x y = z `seq` z
+  where
+    z = x + y
+
+infixl 6 +!
+
+{-# INLINABLE (-!) #-}
+(-!) :: (Num a) => a -> a -> a
+(-!) x y = z `seq` z
+  where
+    z = x - y
+
+infixl 6 -!
+
+{-# INLINABLE (*!) #-}
+(*!) :: (Num a) => a -> a -> a
+(*!) x y = z `seq` z
+  where
+    z = x * y
+
+infixl 6 *!
+
+{-# INLINABLE (/!) #-}
+(/!) :: (Fractional a) => a -> a -> a
+(/!) x y = z `seq` z
+  where
+    z = x / y
+
+infixl 7 /!
 

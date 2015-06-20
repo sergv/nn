@@ -26,6 +26,7 @@ library
   ghc-options:         -W -Wall
                        -fwarn-monomorphism-restriction
                        -fno-warn-name-shadowing
+                       -fno-warn-type-defaults
                        -ferror-spans
                        -rtsopts
                        -- -fllvm -O2 -optlc=-O3 -optlo=-O3
@@ -38,7 +39,7 @@ executable nn
   -- other-extensions:
                        --random-source, deepseq, wl-pprint-text,
   build-depends:       nn, base >=4.6, text, vector, mtl, directory,
-                       random-source,
+                       random, random-source, random-fu,
                        Chart, Chart-cairo, colour, lens, data-default-class,
                        criterion
   default-language:    Haskell2010
@@ -56,6 +57,13 @@ test-suite test-nn
   main-is:             Main.hs
   hs-source-dirs:      tests
   default-language:    Haskell2010
-  build-depends:       base >= 3 && < 5, vector, mtl, random-source,
+  build-depends:       base >= 3 && < 5, vector, mtl,
+                       random, random-source, random-fu,
                        tasty, tasty-hunit,
                        nn
+  ghc-options:         -W -Wall
+                       -fwarn-monomorphism-restriction
+                       -fno-warn-name-shadowing
+                       -fno-warn-type-defaults
+                       -ferror-spans
+                       -rtsopts
