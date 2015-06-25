@@ -20,6 +20,7 @@
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
+{-# LANGUAGE UnboxedTuples       #-}
 
 module NN.Specific where
 
@@ -274,15 +275,13 @@ backprop dataset = go
             useLayer :: Vector a -> (a, a, Vector a)
             useLayer ws = (x, deds, ws)
               where
-                s    = V.head ws +! dot' prevLayer (V.tail ws)
-                x    = nonlinearity nn s
-                deds = nonlinearityDeriv nn x s
+                s             = V.head ws +! dot' prevLayer (V.tail ws)
+                (# x, deds #) = nonlinearityDeriv nn s
 
         g :: Vector (a, a, Vector a) -> Vector (Vector a) -> Vector (a, a, Vector a)
         g prevLayer layer =
-          V.map (\ws -> let s    = V.head ws +! dot' prevLayer (V.tail ws)
-                            x    = output nn s
-                            deds = outputDeriv nn x s
+          V.map (\ws -> let s             = V.head ws +! dot' prevLayer (V.tail ws)
+                            (# x, deds #) = outputDeriv nn s
                         in (x, deds, ws))
                 layer
 
