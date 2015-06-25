@@ -184,12 +184,33 @@ compareAdVsBackpropGradients
   -> TestTree
 compareAdVsBackpropGradients name mkInput inputLayerSize hiddenLayers finalLayerSize =
   testGroup "ad vs backpropagation"
-    [ compareGradients
-        name
-        mkVectorInput
-        (makeSpecificNN inputLayerSize hiddenLayers finalLayerSize)
-        S.targetFunctionGrad -- (S.targetFunctionGradNumerical 1e-6)
-        S.backprop
+    [ testGroup "Specific"
+        [ compareGradients
+            name
+            mkVectorInput
+            (makeSpecificNN inputLayerSize hiddenLayers finalLayerSize)
+            S.targetFunctionGrad -- (S.targetFunctionGradNumerical 1e-6)
+            S.backprop
+        ]
+    , testGroup "Generic"
+        [ testGroup "Vector"
+            [ compareGradients
+                name
+                mkVectorInput
+                (makeGenericVectorNN inputLayerSize hiddenLayers finalLayerSize)
+                G.targetFunctionGrad -- (G.targetFunctionGradNumerical 1e-6)
+                G.backprop
+            ]
+        , testGroup "List"
+            [ compareGradients
+                name
+                mkInput
+                (makeGenericListNN inputLayerSize hiddenLayers finalLayerSize)
+                G.targetFunctionGrad -- (G.targetFunctionGradNumerical 1e-6)
+                G.backprop
+            ]
+        ]
+
     ]
   where
     mkVectorInput :: Double -> (Vector Double, Vector Double)

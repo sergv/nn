@@ -21,6 +21,7 @@
 {-# LANGUAGE ScopedTypeVariables  #-}
 {-# LANGUAGE StandaloneDeriving   #-}
 {-# LANGUAGE TupleSections        #-}
+{-# LANGUAGE UnboxedTuples        #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module NN.Generic where
@@ -76,6 +77,10 @@ nnZipWith4 f (NN xs finX) (NN ys finY) (NN zs finZ) (NN ws finW) =
      (zipLayers finX finY finZ finW)
   where
     zipLayers = VC.zipWith4 (VC.zipWith4 f)
+
+-- nnZ = nnX + NNy
+add :: (Vect v, Floating a) => NN v n o a -> NN v n o a -> NN v n o a
+add nn addend = nnZipWith (\x y -> x + y) nn addend
 
 -- nnZ = b * nnX + NNy
 addScaled :: (Vect v, Floating a) => NN v n o a -> a -> NN v n o a -> NN v n o a
@@ -136,7 +141,7 @@ targetFunction
   -> a
 targetFunction dataset nn =
   V.sum $
-  V.map (\(x, y) -> vectorSize $
+  V.map (\(x, y) -> vectorSize' $
                     VC.zipWith (-) (forwardPropagate nn x) y)
         dataset
 
@@ -155,6 +160,144 @@ targetFunctionGrad dataset =
       -> b
     targetFunction' dataset =
       targetFunction (VC.map (VC.map auto *** VC.map auto) dataset)
+
+backprop
+  :: forall v n o a. (Vect v, Nonlinearity n, OutputType o n, Floating a)
+  => Vector (v a, v a)
+  -> NN v n o a
+  -> (a, Grad (NN v n o) a)
+backprop dataset = go
+  where
+    go :: NN v n o a -> (a, Grad (NN v n o) a)
+    go nn@(NN _hiddenLayerWeights finalLayerWeights) =
+      V.foldr'
+        combineAdd
+        (0, zeroGrad)
+        (fmap (uncurry computeSample) dataset)
+      where
+        zeroGrad :: Grad (NN v n o) a
+        zeroGrad = Grad (fmap (const 0) nn)
+
+        computeSample :: v a -> v a -> (a, Grad (NN v n o) a)
+        computeSample x y
+          | VC.length prediction /= VC.length y =
+            error "Size mismatch between network prediction and expected output"
+          | VC.length finalLayer /= VC.length finalLayerWeights =
+            error "Size mismatch between final layer sums and final layer neurons"
+          | otherwise =
+            (err, Grad $ NN hiddenLayerDerivs finalDerivs)
+          where
+            -- NB full neurons of hidden layers can be obtained by using
+            -- V.snoc hiddenLayersNeurons prefinalNeuronLayer
+            hiddenLayersNeurons :: Vector (v (a, a, v a))
+            (hiddenLayersNeurons, prefinalNeuronLayer, finalLayer) = forwardProp nn x
+            prediction :: v a
+            prediction = fmap (\(x, _deds, _ws) -> x) finalLayer
+            mismatch :: v a
+            mismatch = VC.zipWith (-!) prediction y
+            err :: a
+            err = vectorSize' mismatch
+            finalDeltas :: v a
+            finalDeltas = VC.zipWith
+                            (\m d -> 2 *! m *! d)
+                            mismatch
+                            (VC.map (\(_x, deds, _ws) -> deds) finalLayer)
+            finalDerivs :: v (v a)
+            finalDerivs = mkLayerDeriv finalDeltas prefinalNeuronLayer
+
+            _prefinalLayerDelta :: v a
+            prefinalDeltaWithLayer@(_prefinalLayerDelta, _) =
+              mkDelta prefinalNeuronLayer (finalDeltas, finalLayer)
+
+            -- Includes prefinalLayerDelta at the end. Does not need
+            -- to include deltas for input layer since they won't be used
+            hiddenLayerDeltas :: Vector (v a)
+            hiddenLayerDeltas =
+              V.map fst $
+              -- Same as V.tail $ V.scanr' ...
+              V.prescanr' mkDelta prefinalDeltaWithLayer hiddenLayersNeurons
+              -- Old version
+              -- V.scanr' mkDelta prefinalDeltaWithLayer hiddenLayersNeurons
+
+            -- Zipping deltas for all but first layer and neuron values for
+            -- all but prefinal layer.
+            hiddenLayerDerivs :: Vector (v (v a))
+            hiddenLayerDerivs =
+              V.zipWith mkLayerDeriv hiddenLayerDeltas hiddenLayersNeurons
+
+            mkLayerDeriv :: v a -> v (a, a, v a) -> v (v a)
+            mkLayerDeriv deltas prevLayer =
+              VC.map (\delta -> VC.cons delta $ VC.map (\(x, _deds, _ws) -> delta *! x) prevLayer) deltas
+
+            mkDelta
+              :: v (a, a, v a)
+              -> (v a, v (a, a, v a))
+              -> (v a, v (a, a, v a))
+            mkDelta layer (deltas', layer') = (deltas, layer)
+              where
+                deltas :: v a
+                deltas =
+                  VC.zipWith (\(_x, deds, _ws) weightedDeltas -> weightedDeltas *! deds) layer $
+                  VC.foldr1 (VC.zipWith (+!)) $
+                  VC.zipWith (\(_, _, ws) delta ->
+                               -- Ignore first weight since that's the weight for constant bias.
+                               -- And there's no delta for bias.
+                               VC.map (*! delta) $ VC.tail ws) layer' deltas'
+
+        combineAdd :: (a, Grad (NN v n o) a) -> (a, Grad (NN v n o) a) -> (a, Grad (NN v n o) a)
+        combineAdd (x, Grad g) (x', Grad g') = (x +! x', Grad $ add g g')
+
+    forwardProp
+      :: NN v n o a
+      -> v a
+      -> (Vector (v (a, a, v a)), v (a, a, v a), v (a, a, v a))
+    forwardProp nn@(NN hiddenLayersWeights finalLayerWeights) input =
+      (neuronValues', prefinalNeuronLayer, finalLayer)
+      where
+        neuronValues :: Vector (v (a, a, v a))
+        neuronValues =
+          V.scanl'
+            f
+            -- (fmap (\x -> (x, 1, error "no weights before input layer")) input)
+            (fmap (\x -> (x, 1, VC.empty)) input)
+            hiddenLayersWeights
+
+        neuronValues' = V.unsafeInit neuronValues
+        prefinalNeuronLayer :: v (a, a, v a)
+        prefinalNeuronLayer = V.unsafeLast neuronValues
+        -- (neuronValues', prefinalNeuronLayer) = V.splitAt (V.length neuronValues - 1) neuronValues
+
+        finalLayer :: v (a, a, v a)
+        finalLayer = g prefinalNeuronLayer finalLayerWeights
+
+        f :: v (a, a, v a) -> v (v a) -> v (a, a, v a)
+        f prevLayer layer = VC.map useLayer layer
+          where
+            useLayer :: v a -> (a, a, v a)
+            useLayer ws = (x, deds, ws)
+              where
+                s             = VC.head ws +! dot' prevLayer (VC.tail ws)
+                (# x, deds #) = nonlinearityDeriv nn s
+
+        g :: v (a, a, v a) -> v (v a) -> v (a, a, v a)
+        g prevLayer layer =
+          VC.map (\ws -> let s             = VC.head ws +! dot' prevLayer (VC.tail ws)
+                             (# x, deds #) = outputDeriv nn s
+                         in (x, deds, ws))
+                layer
+
+        dot' :: v (a, b, c) -> v a -> a
+        dot' xs ys
+          | xsLen /= ysLen =
+            error $ "dot': cannot take dot products for vectors of different length: " ++
+              "|xs| = " ++ show xsLen ++ ", |ys| = " ++ show ysLen
+          | otherwise      =
+            VC.foldr (+!) 0 $ VC.zipWith (\(x, _deds, _ws) y -> x *! y) xs ys
+          where
+            xsLen = VC.length xs
+            ysLen = VC.length ys
+
+
 
 targetFunctionGradNumerical
   :: forall v n o a. (Vect v, Nonlinearity n, OutputType o n, Floating a)
@@ -202,4 +345,7 @@ instance forall v n o a. (Vect v, Show a, Nonlinearity n, OutputType o n) => Pre
         VC.toList
 
 vectorSize :: (Vect v, Floating a) => v a -> a
-vectorSize = sqrt . VC.sum . VC.map (\x -> x * x) -- (^(2 :: Int))
+vectorSize = sqrt . vectorSize'
+
+vectorSize' :: (Vect v, Floating a) => v a -> a
+vectorSize' = VC.sum . VC.map (\x -> x * x) -- (^(2 :: Int))

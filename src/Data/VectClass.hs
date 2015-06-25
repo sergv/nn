@@ -33,6 +33,7 @@ class (Traversable v) => Vect v where
   zipWith3   :: (a -> b -> c -> d) -> v a -> v b -> v c -> v d
   zipWith4   :: (a -> b -> c -> d -> e) -> v a -> v b -> v c -> v d -> v e
   foldr      :: (a -> b -> b) -> b -> v a -> b
+  foldr1     :: (a -> a -> a) -> v a -> a
   empty      :: v a
   cons       :: a -> v a -> v a
   head       :: v a -> a
@@ -65,6 +66,8 @@ instance Vect Vector where
   zipWith4   = V.zipWith4
   {-# INLINABLE foldr #-}
   foldr      = V.foldr
+  {-# INLINABLE foldr1 #-}
+  foldr1     = V.foldr1
   {-# INLINABLE empty #-}
   empty      = V.empty
   {-# INLINABLE cons #-}
@@ -97,6 +100,8 @@ instance Vect [] where
   zipWith4   = L.zipWith4
   {-# INLINABLE foldr #-}
   foldr      = L.foldr
+  {-# INLINABLE foldr1 #-}
+  foldr1     = L.foldr1
   {-# INLINABLE empty #-}
   empty      = []
   {-# INLINABLE cons #-}
