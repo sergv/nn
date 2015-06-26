@@ -48,7 +48,6 @@ class (Traversable v) => Vect v where
     | otherwise =
       foldr (+) 0 $ zipWith (*) xs ys
 
-
 instance Vect Vector where
   {-# INLINABLE fromList #-}
   fromList   = V.fromList
