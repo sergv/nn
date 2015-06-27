@@ -47,6 +47,7 @@ import Data.Default.Class
 import Graphics.Rendering.Chart hiding (Vector)
 import Graphics.Rendering.Chart.Backend.Cairo
 
+import Data.PureMatrix (PureMatrix)
 import LearningAlgorithms
 import NN.Specific
 import qualified NN.Generic as NG
@@ -86,10 +87,10 @@ mkSpecificNN = makeNN 1 [10, 10] 1 (sample stdNormal)
 -- for sine dataset
 -- mkSpecificNN = makeNN hyperbolicTangentNT nonlinearOut 1 [2, 2] 1
 
-mkGenericVectorNN :: (Applicative m, MonadRandom m) => m (NG.NN Vector HyperbolicTangent Nonlinear Double)
+mkGenericVectorNN :: (Applicative m, MonadRandom m) => m (NG.NN (PureMatrix Vector) Vector HyperbolicTangent Nonlinear Double)
 mkGenericVectorNN = NG.makeNN 1 [10, 10] 1 (sample stdNormal)
 
-mkGenericListNN :: (Applicative m, MonadRandom m) => m (NG.NN [] HyperbolicTangent Nonlinear Double)
+mkGenericListNN :: (Applicative m, MonadRandom m) => m (NG.NN (PureMatrix []) [] HyperbolicTangent Nonlinear Double)
 mkGenericListNN = NG.makeNN 1 [10, 10] 1 (sample stdNormal)
 
 main :: IO ()
@@ -101,15 +102,16 @@ main = do
   let nnGList        = evalState mkGenericListNN mt
       rpropDataGList = rprop standardDeltaInfo nnGList $ V.map (V.toList *** V.toList) trainDataset
   defaultMainWith criterionConfig [
-      bench "rprop specific" $ nf (constantUpdates rpropData 100) nn
-    , bench "rprop generic - Vector" $ nf (constantUpdates rpropDataGVec 100) nnGVec
-    , bench "rprop generic - List" $ nf (constantUpdates rpropDataGList 100) nnGList
+      bench "rprop specific" $ nf (constantUpdates rpropData iterations) nn
+    , bench "rprop generic - Vector" $ nf (constantUpdates rpropDataGVec iterations) nnGVec
+    , bench "rprop generic - List" $ nf (constantUpdates rpropDataGList iterations) nnGList
     -- , bench "rprop unboxed tuple" $ nf (rprop' errInfo standardDeltaInfo nn) trainDataset
     ]
   -- void $ searchForFittingNN mt mkNN errInfo trainDataset
 
   -- print nn'
   where
+    iterations = 10
     errInfo = ErrInfo 1e-5 1e-8
 
     -- trainDataset = xorDataset

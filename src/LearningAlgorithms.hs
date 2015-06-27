@@ -22,9 +22,10 @@ module LearningAlgorithms where
 import Data.Vector (Vector)
 import Text.Printf
 
-import NN (NeuralNetwork, NNVectorLike, ZippableNN)
+import NN (NeuralNetwork, NNVectorLike)
 import qualified NN as NN
 import Util
+import Util.Zippable
 
 
 import Debug.Trace
@@ -132,7 +133,7 @@ deriving instance (Eq (nn Double)) => Eq (RPropState nn)
 deriving instance (Ord (nn Double)) => Ord (RPropState nn)
 
 rprop
-  :: forall nn v. (Functor nn, ZippableNN nn, NNVectorLike nn Double, NeuralNetwork nn v Double)
+  :: forall nn v. (Functor nn, Zippable nn, NNVectorLike nn Double, NeuralNetwork nn v Double)
   => DeltaInfo
   -> nn Double
   -> Vector (v Double, v Double)
@@ -156,7 +157,7 @@ rprop (DeltaInfo {delta0, deltaMin, deltaMax, deltaIncrease, deltaDecrease}) nn 
       (value, gradient, nn', (RPropState deltas' (Grad prevGradient')))
       where
         (value, gradient) = NN.targetFunctionGrad dataset nn
-        upd               = NN.zipWith4 g (getGrad prevGradient) (getGrad gradient) nn deltas
+        upd               = zipWith4 g (getGrad prevGradient) (getGrad gradient) nn deltas
         nn'               = fmap (\(x, _, _) -> x) upd
         deltas'           = fmap (\(_, y, _) -> y) upd
         prevGradient'     = fmap (\(_, _, z) -> z) upd

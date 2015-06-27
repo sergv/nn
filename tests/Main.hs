@@ -20,7 +20,7 @@ import Control.Monad.State
 import Data.Vector (Vector)
 import qualified Data.Vector as V
 
-import qualified NN as NN
+import Data.PureMatrix (PureMatrix)
 import qualified NN.Specific as S
 import qualified NN.Generic as G
 import Nonlinearity
@@ -31,9 +31,9 @@ import Test.Tasty.HUnit
 
 import Data.Random.Distribution.Normal (stdNormal)
 import Data.Random.Sample (sample)
-import Data.Random.Source (MonadRandom)
 import Data.Random.Source.PureMT (PureMT, pureMT)
 
+import qualified MatrixTests
 
 default (Int)
 
@@ -219,10 +219,10 @@ compareAdVsBackpropGradients name mkInput inputLayerSize hiddenLayers finalLayer
 makeSpecificNN :: Int -> [Int] -> Int -> State PureMT (S.NN HyperbolicTangent Nonlinear Double)
 makeSpecificNN inputLayerSize hiddenLayerSizes finalLayerSize =
   S.makeNN inputLayerSize hiddenLayerSizes finalLayerSize (sample stdNormal)
-makeGenericVectorNN :: Int -> [Int] -> Int -> State PureMT (G.NN Vector HyperbolicTangent Nonlinear Double)
+makeGenericVectorNN :: Int -> [Int] -> Int -> State PureMT (G.NN (PureMatrix Vector) Vector HyperbolicTangent Nonlinear Double)
 makeGenericVectorNN inputLayerSize hiddenLayerSizes finalLayerSize =
   G.makeNN inputLayerSize hiddenLayerSizes finalLayerSize (sample stdNormal)
-makeGenericListNN :: Int -> [Int] -> Int -> State PureMT (G.NN [] HyperbolicTangent Nonlinear Double)
+makeGenericListNN :: Int -> [Int] -> Int -> State PureMT (G.NN (PureMatrix []) [] HyperbolicTangent Nonlinear Double)
 makeGenericListNN inputLayerSize hiddenLayerSizes finalLayerSize =
   G.makeNN inputLayerSize hiddenLayerSizes finalLayerSize (sample stdNormal)
 
@@ -250,7 +250,13 @@ compareGradients name mkInput mkNN targetFuncGrad targetFuncGrad' =
     (x, grad)   = (ApproxEq *** fmap ApproxEq) $ targetFuncGrad dataset nn
     (x', grad') = (ApproxEq *** fmap ApproxEq) $ targetFuncGrad' dataset nn
 
+allTests :: TestTree
+allTests = testGroup "all tests"
+  [ tests
+  , MatrixTests.tests
+  ]
 
 main :: IO ()
 main = do
-  defaultMain tests
+  defaultMain allTests
+

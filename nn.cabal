@@ -11,13 +11,17 @@ build-type:          Simple
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     Data.VectClass
+  exposed-modules:     Data.PureMatrix
+                       Data.VectClass
+                       Data.MatrixClass
                        LearningAlgorithms
                        NN
                        NN.Generic
                        NN.Specific
                        Nonlinearity
+                       Unboxed.Functor
                        Util
+                       Util.Zippable
   build-depends:       base >=4.6, text, mtl, vector, random,
                        ad, random-source, random-fu, free, deepseq,
                        wl-pprint-text

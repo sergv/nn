@@ -18,30 +18,29 @@ module Data.VectClass where
 
 import qualified Control.Monad as L (replicateM)
 import qualified Data.List as L
-import Data.Traversable (Traversable)
 import Data.Vector (Vector)
 import qualified Data.Vector as V
-import Prelude (Num(..), Floating(..), Eq(..), ($), Int, Monad, error, otherwise)
-import qualified Prelude as P -- hiding (map, zipWith, )
+import Prelude (Num(..), Eq(..), ($), Int, Monad, error, otherwise, (.))
+import qualified Prelude as P
 
-class (Traversable v) => Vect v where
+import Util
+import Util.Zippable
+
+class (Zippable v) => Vect v where
   fromList   :: [a] -> v a
   toList     :: v a -> [a]
+  replicate  :: Int -> a -> v a
   map        :: (a -> b) -> v a -> v b
   sum        :: (Num a) => v a -> a
-  zipWith    :: (a -> b -> c) -> v a -> v b -> v c
-  zipWith3   :: (a -> b -> c -> d) -> v a -> v b -> v c -> v d
-  zipWith4   :: (a -> b -> c -> d -> e) -> v a -> v b -> v c -> v d -> v e
+  (.+.)      :: (Num a) => v a -> v a -> v a
   foldr      :: (a -> b -> b) -> b -> v a -> b
   foldr1     :: (a -> a -> a) -> v a -> a
   empty      :: v a
-  cons       :: a -> v a -> v a
-  head       :: v a -> a
-  tail       :: v a -> v a
   reverse    :: v a -> v a
   length     :: v a -> Int
   replicateM :: (Monad m) => Int -> m a -> m (v a)
-  dot        :: (Floating a) => v a -> v a -> a
+  {-# INLINABLE dot #-}
+  dot :: (Num a) => v a -> v a -> a
   dot xs ys
     | length xs /= length ys =
       error "cannot take dot products for vectors of different length"
@@ -49,69 +48,57 @@ class (Traversable v) => Vect v where
       foldr (+) 0 $ zipWith (*) xs ys
 
 instance Vect Vector where
-  {-# INLINABLE fromList #-}
-  fromList   = V.fromList
-  {-# INLINABLE toList #-}
-  toList     = V.toList
-  {-# INLINABLE map #-}
-  map        = V.map
-  {-# INLINABLE sum #-}
-  sum        = V.sum
-  {-# INLINABLE zipWith #-}
-  zipWith    = V.zipWith
-  {-# INLINABLE zipWith3 #-}
-  zipWith3   = V.zipWith3
-  {-# INLINABLE zipWith4 #-}
-  zipWith4   = V.zipWith4
-  {-# INLINABLE foldr #-}
-  foldr      = V.foldr
-  {-# INLINABLE foldr1 #-}
-  foldr1     = V.foldr1
-  {-# INLINABLE empty #-}
-  empty      = V.empty
-  {-# INLINABLE cons #-}
-  cons       = V.cons
-  {-# INLINABLE head #-}
-  head       = V.head
-  {-# INLINABLE tail #-}
-  tail       = V.tail
-  {-# INLINABLE reverse #-}
-  reverse    = V.reverse
-  {-# INLINABLE length #-}
-  length     = V.length
+  {-# INLINABLE fromList   #-}
+  {-# INLINABLE toList     #-}
+  {-# INLINABLE replicate  #-}
+  {-# INLINABLE map        #-}
+  {-# INLINABLE sum        #-}
+  {-# INLINABLE (.+.)      #-}
+  {-# INLINABLE foldr      #-}
+  {-# INLINABLE foldr1     #-}
+  {-# INLINABLE empty      #-}
+  {-# INLINABLE reverse    #-}
+  {-# INLINABLE length     #-}
   {-# INLINABLE replicateM #-}
+  fromList   = V.fromList
+  toList     = V.toList
+  replicate  = V.replicate
+  map        = V.map
+  sum        = V.sum
+  (.+.)      = zipWith (+!)
+  foldr      = V.foldr
+  foldr1     = V.foldr1
+  empty      = V.empty
+  reverse    = V.reverse
+  length     = V.length
   replicateM = V.replicateM
 
 instance Vect [] where
-  {-# INLINABLE fromList #-}
-  fromList   = P.id
-  {-# INLINABLE toList #-}
-  toList     = P.id
-  {-# INLINABLE map #-}
-  map        = L.map
-  {-# INLINABLE sum #-}
-  sum        = L.sum
-  {-# INLINABLE zipWith #-}
-  zipWith    = L.zipWith
-  {-# INLINABLE zipWith3 #-}
-  zipWith3   = L.zipWith3
-  {-# INLINABLE zipWith4 #-}
-  zipWith4   = L.zipWith4
-  {-# INLINABLE foldr #-}
-  foldr      = L.foldr
-  {-# INLINABLE foldr1 #-}
-  foldr1     = L.foldr1
-  {-# INLINABLE empty #-}
-  empty      = []
-  {-# INLINABLE cons #-}
-  cons       = (:)
-  {-# INLINABLE head #-}
-  head       = L.head
-  {-# INLINABLE tail #-}
-  tail       = L.tail
-  {-# INLINABLE reverse #-}
-  reverse    = L.reverse
-  {-# INLINABLE length #-}
-  length     = L.length
+  {-# INLINABLE fromList   #-}
+  {-# INLINABLE toList     #-}
+  {-# INLINABLE replicate  #-}
+  {-# INLINABLE map        #-}
+  {-# INLINABLE sum        #-}
+  {-# INLINABLE (.+.)      #-}
+  {-# INLINABLE foldr      #-}
+  {-# INLINABLE foldr1     #-}
+  {-# INLINABLE empty      #-}
+  {-# INLINABLE reverse    #-}
+  {-# INLINABLE length     #-}
   {-# INLINABLE replicateM #-}
+  fromList   = P.id
+  toList     = P.id
+  replicate  = L.replicate
+  map        = L.map
+  sum        = L.sum
+  (.+.)      = zipWith (+!)
+  foldr      = L.foldr
+  foldr1     = L.foldr1
+  empty      = []
+  reverse    = L.reverse
+  length     = L.length
   replicateM = L.replicateM
+
+{-# INLINABLE normL2Square #-}
+normL2Square :: (Vect v, Num a) => v a -> a
+normL2Square = sum . map (\x -> x * x)

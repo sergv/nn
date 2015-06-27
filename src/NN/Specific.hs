@@ -20,7 +20,6 @@
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE UnboxedTuples       #-}
 
 module NN.Specific where
 
@@ -41,6 +40,7 @@ import Data.Random.Source.PureMT ()
 
 import Nonlinearity
 import Util
+import Util.Zippable
 
 data NN n o a =
   NN
@@ -54,6 +54,14 @@ data NN n o a =
 
 instance (NFData a) => NFData (NN n o a) where
   rnf (NN xs fin) = rnf xs `seq` rnf fin
+
+instance Zippable (NN n o) where
+  {-# INLINABLE zipWith  #-}
+  {-# INLINABLE zipWith3 #-}
+  {-# INLINABLE zipWith4 #-}
+  zipWith  = nnZipWith
+  zipWith3 = nnZipWith3
+  zipWith4 = nnZipWith4
 
 nnZipWith :: (a -> b -> c) -> NN n o a -> NN n o b -> NN n o c
 nnZipWith f (NN xs finX) (NN ys finY) =
@@ -275,13 +283,13 @@ backprop dataset = go
             useLayer :: Vector a -> (a, a, Vector a)
             useLayer ws = (x, deds, ws)
               where
-                s             = V.head ws +! dot' prevLayer (V.tail ws)
-                (# x, deds #) = nonlinearityDeriv nn s
+                s         = V.head ws +! dot' prevLayer (V.tail ws)
+                (x, deds) = nonlinearityDeriv nn s
 
         g :: Vector (a, a, Vector a) -> Vector (Vector a) -> Vector (a, a, Vector a)
         g prevLayer layer =
-          V.map (\ws -> let s             = V.head ws +! dot' prevLayer (V.tail ws)
-                            (# x, deds #) = outputDeriv nn s
+          V.map (\ws -> let s         = V.head ws +! dot' prevLayer (V.tail ws)
+                            (x, deds) = outputDeriv nn s
                         in (x, deds, ws))
                 layer
 
