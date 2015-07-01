@@ -11,19 +11,22 @@ build-type:          Simple
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     Data.PureMatrix
+  exposed-modules:     Data.MatrixDouble
+                       Data.PureMatrix
                        Data.VectClass
+                       Data.VectorDouble
+                       Data.UnboxMatrix
                        Data.MatrixClass
                        LearningAlgorithms
                        NN
                        NN.Generic
                        NN.Specific
                        Nonlinearity
-                       Unboxed.Functor
                        Util
+                       Util.ConstrainedFunctor
                        Util.Zippable
   build-depends:       base >=4.6, text, mtl, vector, random,
-                       ad, random-source, random-fu, free, deepseq,
+                       reflection, ad, random-source, random-fu, free, deepseq,
                        wl-pprint-text
   default-language:    Haskell2010
   hs-source-dirs:      src
@@ -33,8 +36,8 @@ library
                        -fno-warn-type-defaults
                        -ferror-spans
                        -rtsopts
-                       -- -fllvm -O2 -optlc=-O3 -optlo=-O3
-                       -- -funfolding-creation-threshold=1000  -funfolding-use-threshold=1000
+                       -fllvm -O2 -optlc=-O3 -optlo=-O3
+                       -funfolding-creation-threshold=1000  -funfolding-use-threshold=1000
   ghc-prof-options:    -fprof-auto
 
 executable nn
@@ -52,8 +55,8 @@ executable nn
                        -fno-warn-name-shadowing
                        -ferror-spans
                        -rtsopts
-                       -- -fllvm -O2 -optlc=-O3 -optlo=-O3
-                       -- -funfolding-creation-threshold=1000  -funfolding-use-threshold=1000
+                       -fllvm -O2 -optlc=-O3 -optlo=-O3
+                       -funfolding-creation-threshold=1000  -funfolding-use-threshold=1000
   ghc-prof-options:    -fprof-auto
 
 test-suite test-nn
@@ -61,7 +64,7 @@ test-suite test-nn
   main-is:             Main.hs
   hs-source-dirs:      tests
   default-language:    Haskell2010
-  build-depends:       base >= 3 && < 5, vector, mtl,
+  build-depends:       base >= 3 && < 5, vector, mtl, text, wl-pprint-text,
                        random, random-source, random-fu,
                        tasty, tasty-hunit,
                        nn
@@ -71,3 +74,4 @@ test-suite test-nn
                        -fno-warn-type-defaults
                        -ferror-spans
                        -rtsopts
+  ghc-prof-options:    -fprof-auto

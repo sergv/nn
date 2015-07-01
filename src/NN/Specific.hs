@@ -11,21 +11,25 @@
 --
 ----------------------------------------------------------------------------
 
-{-# LANGUAGE DeriveFunctor       #-}
-{-# LANGUAGE DeriveFoldable      #-}
-{-# LANGUAGE DeriveTraversable   #-}
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE NamedFieldPuns      #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE RankNTypes          #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections       #-}
+{-# LANGUAGE DeriveFunctor         #-}
+{-# LANGUAGE DeriveFoldable        #-}
+{-# LANGUAGE DeriveTraversable     #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE NamedFieldPuns        #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TupleSections         #-}
+{-# LANGUAGE TypeFamilies          #-}
+
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module NN.Specific where
 
 import Control.Arrow
-import Control.Monad
 import Control.DeepSeq
+import Control.Monad.Except
 import Control.Monad.State
 import Data.Monoid
 import Data.Vector (Vector)
@@ -35,12 +39,14 @@ import qualified Text.PrettyPrint.Leijen.Text as PP
 
 import Numeric.AD hiding (gradientDescent, Grad)
 
-import Data.Random.Source (MonadRandom)
 import Data.Random.Source.PureMT ()
 
 import Nonlinearity
 import Util
+import Util.ConstrainedFunctor
 import Util.Zippable
+
+-- import Debug.Trace
 
 data NN n o a =
   NN
@@ -52,16 +58,40 @@ data NN n o a =
     (Vector (Vector a))
   deriving (Show, Eq, Ord, Functor, Foldable, Traversable)
 
+instance forall n o a. (Nonlinearity n, OutputType o n, Show a) => Pretty (NN n o a) where
+  pretty nn@(NN hiddenLayers finalLayer) =
+    "Nonlinearity: " <> ppNonlinearity nn  <> PP.line <>
+    "Output: "       <> ppOutput nn        <> PP.line <>
+    "HiddenLayers: " <> (PP.hcat $
+                         PP.punctuate (PP.line <> PP.line) $
+                         V.toList $
+                         V.map showLayer hiddenLayers) <> PP.line <>
+    "OutputLayer: "  <> showLayer finalLayer
+    where
+      showLayer :: Vector (Vector a) -> Doc
+      showLayer =
+        PP.vsep .
+        map (PP.hcat . PP.punctuate PP.comma . map prettyShow . V.toList) .
+        V.toList
+
 instance (NFData a) => NFData (NN n o a) where
   rnf (NN xs fin) = rnf xs `seq` rnf fin
 
-instance Zippable (NN n o) where
+instance ConstrainedFunctor NoConstraints (NN n o) where
+  {-# INLINABLE cfmap #-}
+  cfmap = fmap
+
+instance Zippable NoConstraints (NN n o) where
   {-# INLINABLE zipWith  #-}
   {-# INLINABLE zipWith3 #-}
   {-# INLINABLE zipWith4 #-}
   zipWith  = nnZipWith
   zipWith3 = nnZipWith3
   zipWith4 = nnZipWith4
+
+toWeightList :: NN n o a -> [[[a]]]
+toWeightList (NN hiddenWeights finalWeights) =
+  V.toList $ V.map (V.toList . V.map V.toList) $ V.snoc hiddenWeights finalWeights
 
 nnZipWith :: (a -> b -> c) -> NN n o a -> NN n o b -> NN n o c
 nnZipWith f (NN xs finX) (NN ys finY) =
@@ -102,28 +132,34 @@ nnSize (NN layers fin) =
 differenceSize :: (Floating a) => NN n o a -> NN n o a -> a
 differenceSize xs ys = nnSize $ addScaled xs (-1) ys
 
+fromWeightList :: forall m n o a. (MonadError String m, Show a) => [[[a]]] -> m (NN n o a)
+fromWeightList []  = throwError "Cannot create neural network from empty list of weights"
+fromWeightList wss = NN <$> (V.fromList <$> mapM convertLayer wss')
+                        <*> convertLayer finalWs
+  where
+    wss'    = init wss
+    finalWs = last wss
+    convertLayer :: [[a]] -> m (Vector (Vector a))
+    convertLayer [] = throwError "Cannot convert empty layer to neural network"
+    convertLayer ws@(w:_)
+      | wLen > 0 && all (\w -> length w == wLen) ws =
+        return $ V.fromList $ map V.fromList ws
+      | otherwise =
+        throwError $ "Invalid layer, all rows must be of the same lenght: " ++ show ws
+      where
+        wLen = length w
+
 -- layer size should be specified without accounting for bias
 makeNN
-  :: forall m n o a. (MonadRandom m)
+  :: forall m n o a. (Monad m, Show a)
   => Int
   -> [Int]
   -> Int
   -> m a
   -> m (NN n o a)
-makeNN inputLayerSize hiddenLayerSizes finalLayerSize mkElem = do
-  (lastHiddenSize, hiddenLayersRev) <- foldM f (inputLayerSize, V.empty) hiddenLayerSizes
-  finalLayer                        <- mkLayer finalLayerSize lastHiddenSize
-  return $ NN (V.reverse hiddenLayersRev) finalLayer
-  where
-    mkLayer :: Int -> Int -> m (Vector (Vector a))
-    mkLayer size prevSize = V.replicateM size (V.replicateM prevSizeWithBias mkElem)
-      where
-        prevSizeWithBias = prevSize + 1
-
-    f :: (Int, Vector (Vector (Vector a))) -> Int -> m (Int, Vector (Vector (Vector a)))
-    f (prevSize, layers) size = do
-      layer <- mkLayer size prevSize
-      return (size, V.cons layer layers)
+makeNN inputLayerSize hiddenLayerSizes finalLayerSize mkElem =
+  either error return . fromWeightList =<<
+  makeWeightList inputLayerSize hiddenLayerSizes finalLayerSize mkElem
 
 {-# SPECIALIZE forwardPropagate :: (OutputType o n) => NN n o Double -> Vector Double -> Vector Double #-}
 forwardPropagate
@@ -169,7 +205,7 @@ targetFunctionGrad dataset = \nn -> second Grad $ grad' (targetFunction' dataset
       targetFunction (V.map (V.map auto *** V.map auto) dataset)
 
 backprop
-  :: forall n o a. (Nonlinearity n, OutputType o n, Floating a)
+  :: forall n o a. (Nonlinearity n, OutputType o n, Floating a, Show a)
   => Vector (Vector a, Vector a)
   -> NN n o a
   -> (a, Grad (NN n o) a)
@@ -192,7 +228,13 @@ backprop dataset = go
           | V.length finalLayer /= V.length finalLayerWeights =
             error "Size mismatch between final layer sums and final layer neurons"
           | otherwise =
-            (err, Grad $ NN hiddenLayerDerivs finalDerivs)
+            -- trace (display' $ PP.vcat
+            --         [ "Specific"
+            --         , "hiddenLayersNeurons = " <> pretty hiddenLayersNeurons
+            --         , "prefinalNeuronLayer = " <> pretty prefinalNeuronLayer
+            --         , "finalLayer          = " <> pretty finalLayer
+            --         ]) $
+            (err, Grad $ NN hiddenLayersDerivs finalDerivs)
           where
             -- NB full neurons of hidden layers can be obtained by using
             -- V.snoc hiddenLayersNeurons prefinalNeuronLayer
@@ -228,8 +270,8 @@ backprop dataset = go
 
             -- Zipping deltas for all but first layer and neuron values for
             -- all but prefinal layer.
-            hiddenLayerDerivs :: Vector (Vector (Vector a))
-            hiddenLayerDerivs =
+            hiddenLayersDerivs :: Vector (Vector (Vector a))
+            hiddenLayersDerivs =
               V.zipWith mkLayerDeriv hiddenLayerDeltas hiddenLayersNeurons
 
             mkLayerDeriv :: Vector a -> Vector (a, a, Vector a) -> Vector (Vector a)
@@ -283,13 +325,15 @@ backprop dataset = go
             useLayer :: Vector a -> (a, a, Vector a)
             useLayer ws = (x, deds, ws)
               where
-                s         = V.head ws +! dot' prevLayer (V.tail ws)
-                (x, deds) = nonlinearityDeriv nn s
+                s    = V.head ws +! dot' prevLayer (V.tail ws)
+                x    = nonlinearity nn s
+                deds = nonlinearityDeriv nn s
 
         g :: Vector (a, a, Vector a) -> Vector (Vector a) -> Vector (a, a, Vector a)
         g prevLayer layer =
-          V.map (\ws -> let s         = V.head ws +! dot' prevLayer (V.tail ws)
-                            (x, deds) = outputDeriv nn s
+          V.map (\ws -> let s    = V.head ws +! dot' prevLayer (V.tail ws)
+                            x    = output nn s
+                            deds = outputDeriv nn s
                         in (x, deds, ws))
                 layer
 
@@ -333,22 +377,6 @@ targetFunctionGradNumerical epsilon dataset nn =
           | n == m    = x
           | otherwise = y
 
-instance forall n o a. (Nonlinearity n, OutputType o n, Show a) => Pretty (NN n o a) where
-  pretty nn@(NN hiddenLayers finalLayer) =
-    "Nonlinearity: " <> ppNonlinearity nn  <> PP.line <>
-    "Output: "       <> ppOutput nn        <> PP.line <>
-    "HiddenLayers: " <> (PP.hcat $
-                         PP.punctuate (PP.line <> PP.line) $
-                         V.toList $
-                         V.map showLayer hiddenLayers) <> PP.line <>
-    "OutputLayer: "  <> showLayer finalLayer
-    where
-      showLayer :: Vector (Vector a) -> Doc
-      showLayer =
-        PP.vsep .
-        map (PP.hcat . PP.punctuate PP.comma . map prettyShow . V.toList) .
-        V.toList
-
 dot :: forall a. (Floating a) => Vector a -> Vector a -> a
 dot xs ys
   | xsLen /= ysLen =
@@ -368,5 +396,3 @@ vectorSize = sqrt . vectorSize'
 vectorSize' :: (Floating a) => Vector a -> a
 vectorSize' = V.sum . V.map (\x -> x *! x) -- (^(2 :: Int))
 
--- instance (Pretty a) => Pretty (Vector a) where
---   pretty = pretty . V.toList

@@ -11,20 +11,34 @@
 --
 ----------------------------------------------------------------------------
 
+{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Main where
 
 import Control.Arrow
 import Control.Monad.State
+import Data.Monoid
 import Data.Vector (Vector)
 import qualified Data.Vector as V
+import qualified Data.Vector.Unboxed as U
+import Text.PrettyPrint.Leijen.Text (Pretty(..))
+import qualified Text.PrettyPrint.Leijen.Text as PP
 
+import Data.MatrixDouble (MatrixDouble)
 import Data.PureMatrix (PureMatrix)
+import Data.VectorDouble (VectorDouble)
+import Data.UnboxMatrix (UnboxMatrix)
+import qualified Data.VectorDouble as VD
+import qualified Data.Text.Lazy as T
+import NN (NNVectorLike)
+import qualified NN
 import qualified NN.Specific as S
 import qualified NN.Generic as G
 import Nonlinearity
 import Util
+import Util.ConstrainedFunctor
 
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -50,6 +64,9 @@ instance Eq ApproxEq where
 
 instance Show ApproxEq where
   show (ApproxEq x) = show x
+
+instance Pretty ApproxEq where
+  pretty (ApproxEq x) = pretty x
 
 tests :: TestTree
 tests = testGroup "Neural network tests"
@@ -89,51 +106,52 @@ nnTests = testGroup "NN.Specific tests"
       [4, 4]
       2
 
-  , compareAdVsBackpropGradients
-      "compare gradients from ad package and from backpropagation #1"
+  , compareGradientsFromDifferentSources
+      "compare gradients from different sources #1"
       mkInput_1_to_1
       1
       []
       1
-  , compareAdVsBackpropGradients
-      "compare gradients from ad package and from backpropagation #2"
+  , compareGradientsFromDifferentSources
+      "compare gradients from different sources #2"
       mkInput_1_to_1
       1
       [1]
       1
-  , compareAdVsBackpropGradients
-      "compare gradients from ad package and from backpropagation #3"
+  , compareGradientsFromDifferentSources
+      "compare gradients from different sources #3"
       mkInput_1_to_1
       1
       [2]
       1
-  , compareAdVsBackpropGradients
-      "compare gradients from ad package and from backpropagation #4"
+  , compareGradientsFromDifferentSources
+      "compare gradients from different sources #4"
       mkInput_1_to_1
       1
       [1, 1]
       1
-  , compareAdVsBackpropGradients
-      "compare gradients from ad package and from backpropagation #5"
+  , compareGradientsFromDifferentSources
+      "compare gradients from different sources #5"
       mkInput_2_to_2
       2
       [4, 4]
       2
-  , compareAdVsBackpropGradients
-      "compare gradients from ad package and from backpropagation #6"
+  , compareGradientsFromDifferentSources
+      "compare gradients from different sources #6"
       mkInput_5_to_5
       5
       []
       5
-  , compareAdVsBackpropGradients
-      "compare gradients from ad package and from backpropagation #7"
+  , compareGradientsFromDifferentSources
+      "compare gradients from different sources #7"
       mkInput_5_to_5
       5
       [10, 10]
       5
   ]
   where
-    mkInput_1_to_1 k = ([2 * k], [k^2])
+    -- mkInput_1_to_1 k = ([2 * k], [k^2])
+    mkInput_1_to_1 k = ([k], [k])
     mkInput_2_to_2 k = ([k, 2 * k], [10 * k, k^2])
     mkInput_5_to_5 k = ([k, k ** 0.5, k ** 0.3, k ** 0.25, k ** 0.2], [ k^n | n <- [1..5]])
 
@@ -150,14 +168,14 @@ compareAdVsNumericalGradients name mkInput inputLayerSize hiddenLayers finalLaye
     [ testGroup "ad vs numerical"
         [ compareGradients
             "Specific"
-            mkVectorInput
+            (mkVectorInput mkInput)
             (makeSpecificNN inputLayerSize hiddenLayers finalLayerSize)
             S.targetFunctionGrad
             (S.targetFunctionGradNumerical epsilon)
         , testGroup "Generic"
             [ compareGradients
                 "Vector"
-                mkVectorInput
+                (mkVectorInput mkInput)
                 (makeGenericVectorNN inputLayerSize hiddenLayers finalLayerSize)
                 G.targetFunctionGrad
                 (G.targetFunctionGradNumerical epsilon)
@@ -170,51 +188,78 @@ compareAdVsNumericalGradients name mkInput inputLayerSize hiddenLayers finalLaye
             ]
         ]
     ]
-  where
-    epsilon = 1e-6
-    mkVectorInput :: Double -> (Vector Double, Vector Double)
-    mkVectorInput = ((V.fromList *** V.fromList) . mkInput)
 
-compareAdVsBackpropGradients
+compareGradientsFromDifferentSources
   :: String
   -> (Double -> ([Double], [Double]))
   -> Int
   -> [Int]
   -> Int
   -> TestTree
-compareAdVsBackpropGradients name mkInput inputLayerSize hiddenLayers finalLayerSize =
-  testGroup "ad vs backpropagation"
-    [ testGroup "Specific"
-        [ compareGradients
-            name
-            mkVectorInput
-            (makeSpecificNN inputLayerSize hiddenLayers finalLayerSize)
-            S.targetFunctionGrad -- (S.targetFunctionGradNumerical 1e-6)
-            S.backprop
-        ]
-    , testGroup "Generic"
-        [ testGroup "Vector"
-            [ compareGradients
-                name
-                mkVectorInput
-                (makeGenericVectorNN inputLayerSize hiddenLayers finalLayerSize)
-                G.targetFunctionGrad -- (G.targetFunctionGradNumerical 1e-6)
-                G.backprop
-            ]
-        , testGroup "List"
-            [ compareGradients
-                name
-                mkInput
-                (makeGenericListNN inputLayerSize hiddenLayers finalLayerSize)
-                G.targetFunctionGrad -- (G.targetFunctionGradNumerical 1e-6)
-                G.backprop
-            ]
-        ]
+compareGradientsFromDifferentSources name mkInput inputLayerSize hiddenLayers finalLayerSize =
+  testGroup name
+  [ testGroup "ad vs backpropagation, same NN type"
+      [ compareGradients
+          "Specific"
+          (mkVectorInput mkInput)
+          (makeSpecificNN inputLayerSize hiddenLayers finalLayerSize)
+          S.targetFunctionGrad
+          S.backprop
+      , testGroup "Generic"
+          [ compareGradients
+              "Vector, PureMatrix"
+              (mkVectorInput mkInput)
+              (makeGenericVectorNN inputLayerSize hiddenLayers finalLayerSize)
+              -- (G.targetFunctionGradNumerical epsilon)
+              G.targetFunctionGrad
+              G.backprop
+          , compareGradients
+              "List, PureMatrix"
+              mkInput
+              (makeGenericListNN inputLayerSize hiddenLayers finalLayerSize)
+              -- (G.targetFunctionGradNumerical epsilon)
+              G.targetFunctionGrad
+              G.backprop
+          ]
+      ]
+  , testGroup "backpropagation, different nn types"
+      [ compareNNGradients
+          "Specific vs Generic Vector"
+          (mkVectorInput mkInput)
+          (makeSpecificNN inputLayerSize hiddenLayers finalLayerSize)
+          S.backprop
+          (mkVectorInput mkInput)
+          (makeGenericVectorNN inputLayerSize hiddenLayers finalLayerSize)
+          G.backprop
+      , compareNNGradients
+          "Specific vs Generic MatrixDouble"
+          (mkVectorInput mkInput)
+          (makeSpecificNN inputLayerSize hiddenLayers finalLayerSize)
+          S.backprop
+          (mkVectorDoubleInput mkInput)
+          (makeUnboxedDoubleNN inputLayerSize hiddenLayers finalLayerSize)
+          G.backprop
+      , compareNNGradients
+          "Specific vs Generic UnboxMatrix"
+          (mkVectorInput mkInput)
+          (makeSpecificNN inputLayerSize hiddenLayers finalLayerSize)
+          S.backprop
+          (mkUnboxedVectorInput mkInput)
+          (makeUnboxMatrixNN inputLayerSize hiddenLayers finalLayerSize)
+          G.backprop
+      -- , compareNNGradients
+      --     "Specific vs Generic MatrixDouble, specialized backprop"
+      --     (mkVectorInput mkInput)
+      --     (makeSpecificNN inputLayerSize hiddenLayers finalLayerSize)
+      --     S.backprop
+      --     (mkVectorDoubleInput mkInput)
+      --     (makeUnboxedDoubleNN inputLayerSize hiddenLayers finalLayerSize)
+      --     G.backprop'
+      ]
+  ]
 
-    ]
-  where
-    mkVectorInput :: Double -> (Vector Double, Vector Double)
-    mkVectorInput = ((V.fromList *** V.fromList) . mkInput)
+epsilon :: Double
+epsilon = 1e-6
 
 makeSpecificNN :: Int -> [Int] -> Int -> State PureMT (S.NN HyperbolicTangent Nonlinear Double)
 makeSpecificNN inputLayerSize hiddenLayerSizes finalLayerSize =
@@ -225,9 +270,30 @@ makeGenericVectorNN inputLayerSize hiddenLayerSizes finalLayerSize =
 makeGenericListNN :: Int -> [Int] -> Int -> State PureMT (G.NN (PureMatrix []) [] HyperbolicTangent Nonlinear Double)
 makeGenericListNN inputLayerSize hiddenLayerSizes finalLayerSize =
   G.makeNN inputLayerSize hiddenLayerSizes finalLayerSize (sample stdNormal)
+makeUnboxedDoubleNN :: Int -> [Int] -> Int -> State PureMT (G.NN MatrixDouble VectorDouble HyperbolicTangent Nonlinear Double)
+makeUnboxedDoubleNN inputLayerSize hiddenLayerSizes finalLayerSize =
+  G.makeNN inputLayerSize hiddenLayerSizes finalLayerSize (sample stdNormal)
+makeUnboxMatrixNN :: Int -> [Int] -> Int -> State PureMT (G.NN UnboxMatrix U.Vector HyperbolicTangent Nonlinear Double)
+makeUnboxMatrixNN inputLayerSize hiddenLayerSizes finalLayerSize =
+  G.makeNN inputLayerSize hiddenLayerSizes finalLayerSize (sample stdNormal)
+
+mkVectorInput
+  :: (Double -> ([Double], [Double]))
+  -> Double -> (Vector Double, Vector Double)
+mkVectorInput mkInput = (V.fromList *** V.fromList) . mkInput
+
+mkVectorDoubleInput
+  :: (Double -> ([Double], [Double]))
+  -> Double -> (VectorDouble Double, VectorDouble Double)
+mkVectorDoubleInput mkInput = (VD.fromList *** VD.fromList) . mkInput
+
+mkUnboxedVectorInput
+  :: (Double -> ([Double], [Double]))
+  -> Double -> (U.Vector Double, U.Vector Double)
+mkUnboxedVectorInput mkInput = (U.fromList *** U.fromList) . mkInput
 
 compareGradients
-  :: forall nn v. (Functor nn, Eq (nn ApproxEq), Show (nn ApproxEq))
+  :: forall k nn v. (NNVectorLike k nn Double, Pretty (nn Double), ElemConstraints k Double)
   => String
   -> (Double -> (v Double, v Double))
   -> (State PureMT (nn Double))
@@ -235,20 +301,47 @@ compareGradients
   -> (Vector (v Double, v Double) -> nn Double -> (Double, Grad nn Double))
   -> TestTree
 compareGradients name mkInput mkNN targetFuncGrad targetFuncGrad' =
+  compareNNGradients name mkInput mkNN targetFuncGrad mkInput mkNN targetFuncGrad'
+
+compareNNGradients
+  :: forall nn nn' k k' v v'.
+     (NNVectorLike k nn Double, Pretty (nn Double), ElemConstraints k Double)
+  => (NNVectorLike k' nn' Double, Pretty (nn' Double), ElemConstraints k' Double)
+  => String
+  -> (Double -> (v Double, v Double))
+  -> (State PureMT (nn Double))
+  -> (Vector (v Double, v Double) -> nn Double -> (Double, Grad nn Double))
+  -> (Double -> (v' Double, v' Double))
+  -> (State PureMT (nn' Double))
+  -> (Vector (v' Double, v' Double) -> nn' Double -> (Double, Grad nn' Double))
+  -> TestTree
+compareNNGradients name mkInput mkNN targetFuncGrad mkInput' mkNN' targetFuncGrad' =
   testCase name $ do
-    assertEqual "target function values do not match" x x'
-    assertEqual "target function gradients do not match" grad grad'
+    assertEqual "target function values do not match" (ApproxEq x) (ApproxEq x')
+    unless (gradList == gradList') $
+      assertFailure $ display' $
+        "target function gradients do not match" PP.<$>
+        "expected:    " <> PP.text (T.pack $ show gradList) PP.<$>
+        "expected nn: " <> pretty nn PP.<$>
+        PP.empty PP.<$>
+        "got:         " <> PP.text (T.pack $ show gradList') PP.<$>
+        "got nn:      " <> pretty nn'
   where
     nn :: nn Double
     nn = evalState mkNN mt
+    nn' :: nn' Double
+    nn' = evalState mkNN' mt
     mt :: PureMT
     mt = pureMT 0
     dataset :: Vector (v Double, v Double)
     dataset = V.fromList $ map mkInput [1] -- [1..10]
-    x, x' :: ApproxEq
-    grad, grad' :: Grad nn ApproxEq
-    (x, grad)   = (ApproxEq *** fmap ApproxEq) $ targetFuncGrad dataset nn
-    (x', grad') = (ApproxEq *** fmap ApproxEq) $ targetFuncGrad' dataset nn
+    dataset' :: Vector (v' Double, v' Double)
+    dataset' = V.fromList $ map mkInput' [1] -- [1..10]
+    (x, grad)   = targetFuncGrad dataset nn
+    (x', grad') = targetFuncGrad' dataset' nn'
+
+    gradList  = fmap (fmap (fmap ApproxEq)) $ NN.toWeightList $ getGrad grad
+    gradList' = fmap (fmap (fmap ApproxEq)) $ NN.toWeightList $ getGrad grad'
 
 allTests :: TestTree
 allTests = testGroup "all tests"

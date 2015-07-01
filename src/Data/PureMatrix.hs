@@ -11,6 +11,7 @@
 --
 ----------------------------------------------------------------------------
 
+{-# LANGUAGE BangPatterns           #-}
 {-# LANGUAGE DeriveFunctor          #-}
 {-# LANGUAGE DeriveFoldable         #-}
 {-# LANGUAGE DeriveTraversable      #-}
@@ -21,6 +22,7 @@
 {-# LANGUAGE OverloadedStrings      #-}
 {-# LANGUAGE ScopedTypeVariables    #-}
 {-# LANGUAGE StandaloneDeriving     #-}
+{-# LANGUAGE TypeFamilies           #-}
 {-# LANGUAGE UndecidableInstances   #-}
 
 module Data.PureMatrix where
@@ -29,8 +31,6 @@ import Prelude hiding (zipWith, zipWith3, map)
 import Control.DeepSeq
 import qualified Data.List as L
 import Data.Monoid
--- import Data.Vector (Vector)
--- import qualified Data.Vector as V
 import Text.PrettyPrint.Leijen.Text (Pretty(..), Doc)
 import qualified Text.PrettyPrint.Leijen.Text as PP
 
@@ -38,15 +38,15 @@ import Data.MatrixClass
 import Data.VectClass (Vect, (.+.))
 import qualified Data.VectClass as VC
 
-import Unboxed.Functor
 import Util
+import Util.ConstrainedFunctor
 import Util.Zippable
 
 
 data PureMatrix v a = PureMatrix
-  { pmRows :: Int
-  , pmCols :: Int
-  , pmData :: v (v a)
+  { pmRows    :: {-# UNPACK #-} !Int
+  , pmColumns :: {-# UNPACK #-} !Int
+  , pmData    :: {-# UNPACK #-} !(v (v a))
   }
   deriving (Functor, Foldable, Traversable)
 
@@ -54,7 +54,7 @@ deriving instance (Show (v (v a))) => Show (PureMatrix v a)
 deriving instance (Eq (v (v a))) => Eq (PureMatrix v a)
 deriving instance (Ord (v (v a))) => Ord (PureMatrix v a)
 
-instance forall v a. (Vect v, Pretty a) => Pretty (PureMatrix v a) where
+instance forall k v a. (Vect k v, ElemConstraints k a, ElemConstraints k (v a), Pretty a) => Pretty (PureMatrix v a) where
   pretty (PureMatrix rows cols xss) =
     "Matrix " <> PP.int rows <> "x" <> PP.int cols PP.<$>
     PP.vsep (L.map showRow $ VC.toList xss)
@@ -65,36 +65,50 @@ instance forall v a. (Vect v, Pretty a) => Pretty (PureMatrix v a) where
 instance (NFData (v (v a))) => NFData (PureMatrix v a) where
   rnf (PureMatrix rows cols xss) = rnf rows `seq` rnf cols `seq` rnf xss
 
-instance (Vect v) => UnboxedFunctor (PureMatrix v) where
-  ufmap f (PureMatrix rows cols xss) = PureMatrix rows cols (VC.map (VC.map f) xss)
+instance (Functor v) => ConstrainedFunctor NoConstraints (PureMatrix v) where
+  cfmap = fmap
 
-instance (Zippable v) => Zippable (PureMatrix v) where
+instance (Functor v, Zippable NoConstraints v) => Zippable NoConstraints (PureMatrix v) where
   zipWith f (PureMatrix xRows xCols xss) (PureMatrix yRows yCols yss)
     | xRows == yRows && xCols == yCols =
       PureMatrix xRows xCols $ zipWith (zipWith f) xss yss
-    | otherwise = error "MatrixClass.zipWith: cannot zip matrices of different shapes"
+    | otherwise = error "PureMatrix.zipWith: cannot zip matrices of different shapes"
   zipWith3 f (PureMatrix xRows xCols xss) (PureMatrix yRows yCols yss) (PureMatrix zRows zCols zss)
     | xRows == yRows && yRows == zRows && xCols == yCols && yCols == zCols =
       PureMatrix xRows xCols $ zipWith3 (zipWith3 f) xss yss zss
-    | otherwise = error "MatrixClass.zipWith3: cannot zip matrices of different shapes"
+    | otherwise = error "PureMatrix.zipWith3: cannot zip matrices of different shapes"
   zipWith4 f (PureMatrix xRows xCols xss) (PureMatrix yRows yCols yss) (PureMatrix zRows zCols zss) (PureMatrix wRows wCols wss)
     | xRows == yRows && yRows == zRows && zRows == wRows && xCols == yCols && yCols == zCols && zCols == wCols =
       PureMatrix xRows xCols $ zipWith4 (zipWith4 f) xss yss zss wss
-    | otherwise = error "MatrixClass.zipWith4: cannot zip matrices of different shapes"
+    | otherwise = error "PureMatrix.zipWith4: cannot zip matrices of different shapes"
 
-instance (Vect v) => Matrix (PureMatrix v) v where
-  map f (PureMatrix rows cols xss) = PureMatrix rows cols $ VC.map (VC.map f) xss
+instance (ConstrainedFunctor NoConstraints v, Vect NoConstraints v) => Matrix NoConstraints (PureMatrix v) v where
+  fromList [] =
+    error "PureMatrix.fromList: cannot create PureMatrix from empty list of rows"
+  fromList wss@(ws:_)
+    | columns > 0 && all (== columns) (L.map length wss) =
+      PureMatrix
+        { pmRows    = rows
+        , pmColumns = columns
+        , pmData    = VC.fromList $ L.map VC.fromList wss
+        }
+    | otherwise =
+      error $ "PureMatrix.fromList: cannot create PureMatrix from list " ++ show wss
+    where
+      rows    = length wss
+      columns = length ws
+  toList (PureMatrix _ _ xss) = L.map VC.toList $ VC.toList xss
   rows    = pmRows
-  columns = pmCols
+  columns = pmColumns
   replicateM rows cols action =
     PureMatrix rows cols <$> VC.replicateM rows (VC.replicateM cols action)
   outerProduct columnVec rowVec =
     PureMatrix (VC.length columnVec) (VC.length rowVec) $
-    VC.map (\c -> VC.map (c *!) rowVec) columnVec
-  vecMulRight (PureMatrix _ _ xss) ys = VC.map (\xs -> VC.dot xs ys) xss
+    VC.map (\c -> cfmap (c *!) rowVec) columnVec
+  vecMulRight (PureMatrix _ _ xss) ys = cfmap (\xs -> VC.dot xs ys) xss
   vecMulLeft xs (PureMatrix _ cols yss) =
-    VC.foldr (.+.) zeroVector $
-    zipWith (\x ys -> VC.map (x *!) ys) xs yss
+    VC.monoFoldr (.+.) zeroVector $
+    zipWith (\x ys -> cfmap (x *!) ys) xs yss
     where
       zeroVector = VC.replicate cols 0
 

@@ -29,6 +29,7 @@ import Control.Monad.State
 import qualified Data.Text.Lazy.IO as T
 import Data.Vector (Vector)
 import qualified Data.Vector as V
+import qualified Data.Vector.Unboxed as U
 import System.Directory
 import Text.Printf
 
@@ -48,6 +49,8 @@ import Graphics.Rendering.Chart hiding (Vector)
 import Graphics.Rendering.Chart.Backend.Cairo
 
 import Data.PureMatrix (PureMatrix)
+import Data.UnboxMatrix (UnboxMatrix)
+import qualified Data.VectClass as VC
 import LearningAlgorithms
 import NN.Specific
 import qualified NN.Generic as NG
@@ -93,6 +96,10 @@ mkGenericVectorNN = NG.makeNN 1 [10, 10] 1 (sample stdNormal)
 mkGenericListNN :: (Applicative m, MonadRandom m) => m (NG.NN (PureMatrix []) [] HyperbolicTangent Nonlinear Double)
 mkGenericListNN = NG.makeNN 1 [10, 10] 1 (sample stdNormal)
 
+mkUnboxMatrixNN :: (Applicative m, MonadRandom m) => m (NG.NN UnboxMatrix U.Vector HyperbolicTangent Nonlinear Double)
+mkUnboxMatrixNN = NG.makeNN 1 [10, 10] 1 (sample stdNormal)
+
+
 main :: IO ()
 main = do
   let nn        = evalState mkSpecificNN mt
@@ -100,11 +107,26 @@ main = do
   let nnGVec        = evalState mkGenericVectorNN mt
       rpropDataGVec = rprop standardDeltaInfo nnGVec trainDataset
   let nnGList        = evalState mkGenericListNN mt
-      rpropDataGList = rprop standardDeltaInfo nnGList $ V.map (V.toList *** V.toList) trainDataset
+      rpropDataGList = rprop standardDeltaInfo nnGList $
+                       V.map (V.toList *** V.toList) trainDataset
+  let nnGUnboxMatrix        = evalState mkUnboxMatrixNN mt
+      unboxMatrixDataset :: Vector (U.Vector Double, U.Vector Double)
+      unboxMatrixDataset    = V.map (VC.fromList . V.toList *** VC.fromList . V.toList) trainDataset
+      rpropDataGUnboxMatrix :: IterateData
+                                 (NG.NN UnboxMatrix U.Vector HyperbolicTangent Nonlinear)
+                                 (RPropState
+                                   (NG.NN UnboxMatrix U.Vector HyperbolicTangent Nonlinear))
+      rpropDataGUnboxMatrix = rprop standardDeltaInfo nnGUnboxMatrix unboxMatrixDataset
+
   defaultMainWith criterionConfig [
-      bench "rprop specific" $ nf (constantUpdates rpropData iterations) nn
-    , bench "rprop generic - Vector" $ nf (constantUpdates rpropDataGVec iterations) nnGVec
-    , bench "rprop generic - List" $ nf (constantUpdates rpropDataGList iterations) nnGList
+      bench "rprop specific" $
+      nf (constantUpdates rpropData iterations) nn
+    , bench "rprop generic - Vector" $
+      nf (constantUpdates rpropDataGVec iterations) nnGVec
+    , bench "rprop generic - List" $
+      nf (constantUpdates rpropDataGList iterations) nnGList
+    , bench "rprop generic - UnboxMatrix" $
+      nf (constantUpdates rpropDataGUnboxMatrix iterations) nnGUnboxMatrix
     -- , bench "rprop unboxed tuple" $ nf (rprop' errInfo standardDeltaInfo nn) trainDataset
     ]
   -- void $ searchForFittingNN mt mkNN errInfo trainDataset
