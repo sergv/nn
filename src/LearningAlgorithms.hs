@@ -26,6 +26,7 @@ import NN (NeuralNetwork, NNVectorLike)
 import qualified NN as NN
 import Util
 import Util.ConstrainedFunctor
+import Util.V3
 import Util.Zippable
 
 
@@ -98,7 +99,7 @@ deriving instance (Ord (nn Double)) => Ord (RPropState nn)
 {-# INLINABLE rprop #-}
 rprop
   :: forall k nn v. (ConstrainedFunctor k nn, Zippable k nn, NNVectorLike k nn Double, NeuralNetwork k nn v Double)
-  => (ElemConstraints k Double , ElemConstraints k (Double, Double, Double))
+  => (ElemConstraints k Double , ElemConstraints k V3)
   => DeltaInfo
   -> nn Double
   -> Vector (v Double, v Double)
@@ -123,27 +124,26 @@ rprop (DeltaInfo {delta0, deltaMin, deltaMax, deltaIncrease, deltaDecrease}) nn 
       where
         (value, gradient) = NN.targetFunctionGrad dataset nn
         upd               = zipWith4 g (getGrad prevGradient) (getGrad gradient) nn deltas
-        nn'               = cfmap (\(x, _, _) -> x) upd
-        deltas'           = cfmap (\(_, y, _) -> y) upd
-        prevGradient'     = cfmap (\(_, _, z) -> z) upd
+        nn'               = cfmap (\(V3 x _ _) -> x) upd
+        deltas'           = cfmap (\(V3 _ y _) -> y) upd
+        prevGradient'     = cfmap (\(V3 _ _ z) -> z) upd
 
-        g :: Double -> Double -> Double -> Double -> (Double, Double, Double)
+        g :: Double -> Double -> Double -> Double -> V3
         g dwPrev dw w delta
-          | dwPrev *! dw > 0 = let delta'  = min (delta *! deltaIncrease) deltaMax
-                                   w'      = w -! signum dw *! delta'
-                                   dwPrev' = dw
-                               in w' `seq` delta' `seq` dwPrev' `seq`
-                                  (w', delta', dwPrev')
-          | dwPrev *! dw < 0 = let delta'  = max (delta *! deltaDecrease) deltaMin
-                                   w'      = w
-                                   dwPrev' = 0
-                               in w' `seq` delta' `seq` dwPrev' `seq`
-                                  (w', delta', dwPrev')
-          | otherwise        = let delta'  = delta
-                                   w'      = w -! signum dw *! delta'
-                                   dwPrev' = dw
-                               in w' `seq` delta' `seq` dwPrev' `seq`
-                                  (w', delta', dwPrev')
+          | dwTrend > 0 = let delta'  = min (delta *! deltaIncrease) deltaMax
+                              w'      = w -! signum dw *! delta'
+                              dwPrev' = dw
+                          in V3 w' delta' dwPrev'
+          | dwTrend < 0 = let delta'  = max (delta *! deltaDecrease) deltaMin
+                              w'      = w
+                              dwPrev' = 0
+                          in V3 w' delta' dwPrev'
+          | otherwise   = let delta'  = delta
+                              w'      = w -! signum dw *! delta'
+                              dwPrev' = dw
+                          in V3 w' delta' dwPrev'
+          where
+            dwTrend = dwPrev *! dw
 
 data IterateData nn s = IterateData
   { iterateFunc          :: s -> nn Double -> (Double, Grad nn Double, nn Double, s)

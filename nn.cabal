@@ -24,6 +24,7 @@ library
                        Nonlinearity
                        Util
                        Util.ConstrainedFunctor
+                       Util.V3
                        Util.Zippable
   build-depends:       base >=4.6, text, mtl, vector, random,
                        reflection, ad, random-source, random-fu, free, deepseq,
