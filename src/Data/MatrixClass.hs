@@ -37,7 +37,7 @@ class (Vect k v) => Matrix k w v | w -> v k where
   outerProduct :: (Num a, ElemConstraints k a) => v a -> v a -> w a
 
   vecMulRight :: (Num a, ElemConstraints k a) => w a -> v a -> v a
-  vecMulLeft  :: (Num a, ElemConstraints k a) => v a -> w a -> v a
+  transpose :: (ElemConstraints k a) => w a -> w a
   -- matrixMult  :: w a -> w a -> w a
 
 normL2Square

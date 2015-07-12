@@ -363,7 +363,7 @@ backprop dataset = go
                 deltas :: v a
                 deltas =
                   zipWith (\deds weightedDeltas -> deds *! weightedDeltas) layerDeriv $
-                  MC.vecMulLeft deltas' weights'
+                  MC.vecMulRight (MC.transpose weights') deltas'
 
         combineAdd :: (a, Grad (NN w v n o) a) -> (a, Grad (NN w v n o) a) -> (a, Grad (NN w v n o) a)
         combineAdd (x, Grad g) (x', Grad g') = (x +! x', Grad $ add g g')

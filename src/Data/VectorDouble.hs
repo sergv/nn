@@ -21,6 +21,8 @@ module Data.VectorDouble
   , concatMap
   , takeBy
   , fromList
+  , backpermute
+  , unsafeBackpermute
   )
 where
 
@@ -99,6 +101,23 @@ takeBy rows cols (VectorDouble vs) =
 
 {-# INLINABLE fromList #-}
 fromList
-  :: (ElemConstraints IsDoubleConstraint a) => [a]
+  :: (ElemConstraints IsDoubleConstraint a)
+  => [a]
   -> VectorDouble a
 fromList = VectorDouble . U.fromList
+
+{-# INLINABLE backpermute #-}
+backpermute
+  :: (ElemConstraints IsDoubleConstraint a)
+  => VectorDouble a
+  -> U.Vector Int
+  -> VectorDouble a
+backpermute (VectorDouble xs) = VectorDouble . U.backpermute xs
+
+{-# INLINABLE unsafeBackpermute #-}
+unsafeBackpermute
+  :: (ElemConstraints IsDoubleConstraint a)
+  => VectorDouble a
+  -> U.Vector Int
+  -> VectorDouble a
+unsafeBackpermute (VectorDouble xs) = VectorDouble . U.unsafeBackpermute xs

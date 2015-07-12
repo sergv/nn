@@ -25,7 +25,7 @@
 {-# LANGUAGE TypeFamilies           #-}
 {-# LANGUAGE UndecidableInstances   #-}
 
-module Data.PureMatrix where
+module Data.PureMatrix (PureMatrix(..)) where
 
 import Prelude hiding (zipWith, zipWith3, map)
 import Control.DeepSeq
@@ -35,7 +35,7 @@ import Text.PrettyPrint.Leijen.Text (Pretty(..), Doc)
 import qualified Text.PrettyPrint.Leijen.Text as PP
 
 import Data.MatrixClass
-import Data.VectClass (Vect, (.+.))
+import Data.VectClass (Vect, TransposableVector)
 import qualified Data.VectClass as VC
 
 import Util
@@ -66,9 +66,13 @@ instance (NFData (v (v a))) => NFData (PureMatrix v a) where
   rnf (PureMatrix rows cols xss) = rnf rows `seq` rnf cols `seq` rnf xss
 
 instance (Functor v) => ConstrainedFunctor NoConstraints (PureMatrix v) where
+  {-# INLINABLE cfmap #-}
   cfmap = fmap
 
 instance (Functor v, Zippable NoConstraints v) => Zippable NoConstraints (PureMatrix v) where
+  {-# INLINABLE zipWith  #-}
+  {-# INLINABLE zipWith3 #-}
+  {-# INLINABLE zipWith4 #-}
   zipWith f (PureMatrix xRows xCols xss) (PureMatrix yRows yCols yss)
     | xRows == yRows && xCols == yCols =
       PureMatrix xRows xCols $ zipWith (zipWith f) xss yss
@@ -82,7 +86,12 @@ instance (Functor v, Zippable NoConstraints v) => Zippable NoConstraints (PureMa
       PureMatrix xRows xCols $ zipWith4 (zipWith4 f) xss yss zss wss
     | otherwise = error "PureMatrix.zipWith4: cannot zip matrices of different shapes"
 
-instance (ConstrainedFunctor NoConstraints v, Vect NoConstraints v) => Matrix NoConstraints (PureMatrix v) v where
+instance (ConstrainedFunctor NoConstraints v, Vect NoConstraints v, TransposableVector NoConstraints v) => Matrix NoConstraints (PureMatrix v) v where
+  {-# INLINABLE rows         #-}
+  {-# INLINABLE columns      #-}
+  {-# INLINABLE outerProduct #-}
+  {-# INLINABLE vecMulRight  #-}
+  {-# INLINABLE transpose    #-}
   fromList [] =
     error "PureMatrix.fromList: cannot create PureMatrix from empty list of rows"
   fromList wss@(ws:_)
@@ -106,11 +115,8 @@ instance (ConstrainedFunctor NoConstraints v, Vect NoConstraints v) => Matrix No
     PureMatrix (VC.length columnVec) (VC.length rowVec) $
     VC.map (\c -> cfmap (c *!) rowVec) columnVec
   vecMulRight (PureMatrix _ _ xss) ys = cfmap (\xs -> VC.dot xs ys) xss
-  vecMulLeft xs (PureMatrix _ cols yss) =
-    VC.monoFoldr (.+.) zeroVector $
-    zipWith (\x ys -> cfmap (x *!) ys) xs yss
-    where
-      zeroVector = VC.replicate cols 0
+  transpose (PureMatrix rows cols xss) =
+    PureMatrix cols rows $ VC.transpose xss
 
 -- instance Matrix (PureMatrix Vector) Vector where
 --   map f (PureMatrix rows cols xss) = PureMatrix rows cols $ fmap (fmap f) xss

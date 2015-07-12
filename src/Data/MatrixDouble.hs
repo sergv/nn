@@ -29,13 +29,13 @@ import Prelude hiding (zipWith, zipWith3)
 import Control.DeepSeq
 import Data.Monoid
 import qualified Data.List as L
+import qualified Data.Vector.Unboxed as U
 import Text.PrettyPrint.Leijen.Text (Pretty(..), Doc)
 import qualified Text.PrettyPrint.Leijen.Text as PP
 
 import Data.VectorDouble (VectorDouble)
 import qualified Data.VectorDouble as VD
 import Data.MatrixClass
-import Data.VectClass ((.+.))
 import qualified Data.VectClass as VC
 import Util
 import Util.ConstrainedFunctor
@@ -94,7 +94,7 @@ instance Matrix IsDoubleConstraint MatrixDouble VectorDouble where
   {-# INLINABLE columns      #-}
   {-# INLINABLE outerProduct #-}
   {-# INLINABLE vecMulRight  #-}
-  {-# INLINABLE vecMulLeft   #-}
+  {-# INLINABLE transpose    #-}
   fromList [] =
     error "MatrixDouble.fromList: cannot create PureMatrix from empty list of rows"
   fromList wss@(ws:_)
@@ -122,9 +122,11 @@ instance Matrix IsDoubleConstraint MatrixDouble VectorDouble where
        }
   vecMulRight (MatrixDouble rows cols xs) ys =
     VD.fromList $ L.map (\zs -> VC.dot zs ys) $ VD.takeBy rows cols xs
-  vecMulLeft xs (MatrixDouble rows cols ys) =
-    L.foldr (.+.) zeroVector $
-    L.zipWith (\x ys -> cfmap (x *!) ys) (VC.toList xs) $ VD.takeBy rows cols ys
+  transpose (MatrixDouble rows cols xs) =
+    MatrixDouble cols rows xs'
     where
-      zeroVector = VC.replicate cols 0
-
+      xs' = VD.unsafeBackpermute xs $ U.fromList
+              [ c + cols * r
+              | c <- [0..cols - 1]
+              , r <- [0..rows - 1]
+              ]

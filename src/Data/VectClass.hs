@@ -54,6 +54,9 @@ class (Zippable k v) => Vect k v | v -> k where
     | otherwise =
       monoFoldr (+) 0 $ zipWith (*) xs ys
 
+class TransposableVector k v | v -> k where
+  transpose :: (ElemConstraints k a, ElemConstraints k (v a)) => v (v a) -> v (v a)
+
 instance Vect NoConstraints Vector where
   {-# INLINABLE fromList   #-}
   {-# INLINABLE toList     #-}
@@ -131,6 +134,15 @@ instance Vect UnboxConstraint U.Vector where
   reverse    = U.reverse
   length     = U.length
   replicateM = U.replicateM
+
+instance TransposableVector NoConstraints Vector where
+  transpose xss
+    | V.null xss = xss
+    | otherwise  =
+      V.fromList $ map (\n -> V.map (V.! n) xss) [0..V.length (V.head xss) - 1]
+
+instance TransposableVector NoConstraints [] where
+  transpose = L.transpose
 
 {-# INLINABLE normL2Square #-}
 normL2Square :: (Vect k v, Num a, ElemConstraints k a) => v a -> a

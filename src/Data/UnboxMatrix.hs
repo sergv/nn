@@ -23,7 +23,7 @@
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE UndecidableInstances  #-}
 
-module Data.UnboxMatrix (UnboxMatrix) where
+module Data.UnboxMatrix (UnboxMatrix(..)) where
 
 import Prelude hiding (zipWith, zipWith3)
 import Control.DeepSeq
@@ -34,7 +34,6 @@ import Text.PrettyPrint.Leijen.Text (Pretty(..), Doc)
 import qualified Text.PrettyPrint.Leijen.Text as PP
 
 import Data.MatrixClass
-import Data.VectClass ((.+.))
 import qualified Data.VectClass as VC
 import Util
 import Util.ConstrainedFunctor
@@ -45,6 +44,7 @@ data UnboxMatrix a = UnboxMatrix
   , umColumns :: {-# UNPACK #-} !Int
   , umData    :: {-# UNPACK #-} !(U.Vector a)
   }
+  deriving (Show, Eq, Ord)
 
 {-# INLINABLE takeBy #-}
 takeBy :: Int -> [a] -> [[a]]
@@ -93,7 +93,7 @@ instance Matrix UnboxConstraint UnboxMatrix U.Vector where
   {-# INLINABLE columns      #-}
   {-# INLINABLE outerProduct #-}
   {-# INLINABLE vecMulRight  #-}
-  {-# INLINABLE vecMulLeft   #-}
+  {-# INLINABLE transpose    #-}
   fromList [] =
     error "UnboxMatrix.fromList: cannot create PureMatrix from empty list of rows"
   fromList wss@(ws:_)
@@ -121,11 +121,14 @@ instance Matrix UnboxConstraint UnboxMatrix U.Vector where
       }
   vecMulRight (UnboxMatrix rows cols xs) ys =
     VC.fromList $ L.map (\zs -> VC.dot zs ys) $ vecTakeBy rows cols xs
-  vecMulLeft xs (UnboxMatrix rows cols ys) =
-    L.foldr (.+.) zeroVector $
-    L.zipWith (\x ys -> cfmap (x *!) ys) (VC.toList xs) $ vecTakeBy rows cols ys
+  transpose (UnboxMatrix rows cols xs) =
+    UnboxMatrix cols rows xs'
     where
-      zeroVector = VC.replicate cols 0
+      xs' = U.unsafeBackpermute xs $ U.fromList
+              [ c + cols * r
+              | c <- [0..cols - 1]
+              , r <- [0..rows - 1]
+              ]
 
 {-# INLINABLE vecTakeBy #-}
 vecTakeBy
