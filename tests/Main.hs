@@ -30,6 +30,7 @@ import Data.MatrixDouble (MatrixDouble)
 import Data.PureMatrix (PureMatrix)
 import Data.VectorDouble (VectorDouble)
 import Data.UnboxMatrix (UnboxMatrix)
+import Data.UnboxMatrixWithTranspose (UnboxMatrixWithTranspose)
 import qualified Data.VectorDouble as VD
 import qualified Data.Text.Lazy as T
 import NN (NNVectorLike)
@@ -247,6 +248,14 @@ compareGradientsFromDifferentSources name mkInput inputLayerSize hiddenLayers fi
           (mkUnboxedVectorInput mkInput)
           (makeUnboxMatrixNN inputLayerSize hiddenLayers finalLayerSize)
           G.backprop
+      , compareNNGradients
+          "Specific vs Generic UnboxMatrixWithTranspose"
+          (mkVectorInput mkInput)
+          (makeSpecificNN inputLayerSize hiddenLayers finalLayerSize)
+          S.backprop
+          (mkUnboxedVectorInput mkInput)
+          (makeUnboxMatrixWithTransposeNN inputLayerSize hiddenLayers finalLayerSize)
+          G.backprop
       -- , compareNNGradients
       --     "Specific vs Generic MatrixDouble, specialized backprop"
       --     (mkVectorInput mkInput)
@@ -275,6 +284,9 @@ makeUnboxedDoubleNN inputLayerSize hiddenLayerSizes finalLayerSize =
   G.makeNN inputLayerSize hiddenLayerSizes finalLayerSize (sample stdNormal)
 makeUnboxMatrixNN :: Int -> [Int] -> Int -> State PureMT (G.NN UnboxMatrix U.Vector HyperbolicTangent Nonlinear Double)
 makeUnboxMatrixNN inputLayerSize hiddenLayerSizes finalLayerSize =
+  G.makeNN inputLayerSize hiddenLayerSizes finalLayerSize (sample stdNormal)
+makeUnboxMatrixWithTransposeNN :: Int -> [Int] -> Int -> State PureMT (G.NN UnboxMatrixWithTranspose U.Vector HyperbolicTangent Nonlinear Double)
+makeUnboxMatrixWithTransposeNN inputLayerSize hiddenLayerSizes finalLayerSize =
   G.makeNN inputLayerSize hiddenLayerSizes finalLayerSize (sample stdNormal)
 
 mkVectorInput

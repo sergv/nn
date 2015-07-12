@@ -16,6 +16,7 @@ library
                        Data.VectClass
                        Data.VectorDouble
                        Data.UnboxMatrix
+                       Data.UnboxMatrixWithTranspose
                        Data.MatrixClass
                        LearningAlgorithms
                        NN

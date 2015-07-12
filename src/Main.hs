@@ -50,6 +50,7 @@ import Graphics.Rendering.Chart.Backend.Cairo
 
 import Data.PureMatrix (PureMatrix)
 import Data.UnboxMatrix (UnboxMatrix)
+import Data.UnboxMatrixWithTranspose (UnboxMatrixWithTranspose)
 import qualified Data.VectClass as VC
 import LearningAlgorithms
 import NN.Specific
@@ -98,7 +99,10 @@ mkGenericListNN = NG.makeNN 1 [10, 10] 1 (sample stdNormal)
 
 mkUnboxMatrixNN :: (Applicative m, MonadRandom m) => m (NG.NN UnboxMatrix U.Vector HyperbolicTangent Nonlinear Double)
 mkUnboxMatrixNN = NG.makeNN 1 [10, 10] 1 (sample stdNormal)
-
+mkUnboxMatrixWithTransposeNN
+  :: (Applicative m, MonadRandom m)
+  => m (NG.NN UnboxMatrixWithTranspose U.Vector HyperbolicTangent Nonlinear Double)
+mkUnboxMatrixWithTransposeNN = NG.makeNN 1 [10, 10] 1 (sample stdNormal)
 
 main :: IO ()
 main = do
@@ -117,16 +121,26 @@ main = do
                                  (RPropState
                                    (NG.NN UnboxMatrix U.Vector HyperbolicTangent Nonlinear))
       rpropDataGUnboxMatrix = rprop standardDeltaInfo nnGUnboxMatrix unboxMatrixDataset
+  let nnGUnboxMatrixWithTranspose = evalState mkUnboxMatrixWithTransposeNN mt
+      rpropDataGUnboxMatrixWithTranspose
+        :: IterateData
+             (NG.NN UnboxMatrixWithTranspose U.Vector HyperbolicTangent Nonlinear)
+             (RPropState
+               (NG.NN UnboxMatrixWithTranspose U.Vector HyperbolicTangent Nonlinear))
+      rpropDataGUnboxMatrixWithTranspose = rprop standardDeltaInfo nnGUnboxMatrixWithTranspose unboxMatrixDataset
 
   defaultMainWith criterionConfig [
-      bench "rprop specific" $
-      nf (constantUpdates rpropData iterations) nn
-    , bench "rprop generic - Vector" $
-      nf (constantUpdates rpropDataGVec iterations) nnGVec
-    , bench "rprop generic - List" $
-      nf (constantUpdates rpropDataGList iterations) nnGList
-    , bench "rprop generic - UnboxMatrix" $
+    --  bench "rprop specific" $
+    --  nf (constantUpdates rpropData iterations) nn
+    -- , bench "rprop generic - Vector" $
+    --   nf (constantUpdates rpropDataGVec iterations) nnGVec
+    -- , bench "rprop generic - List" $
+    --   nf (constantUpdates rpropDataGList iterations) nnGList
+    -- ,
+      bench "rprop generic - UnboxMatrix" $
       nf (constantUpdates rpropDataGUnboxMatrix iterations) nnGUnboxMatrix
+    , bench "rprop generic - UnboxMatrixWithTranspose" $
+      nf (constantUpdates rpropDataGUnboxMatrixWithTranspose iterations) nnGUnboxMatrixWithTranspose
     -- , bench "rprop unboxed tuple" $ nf (rprop' errInfo standardDeltaInfo nn) trainDataset
     ]
   -- void $ searchForFittingNN mt mkNN errInfo trainDataset

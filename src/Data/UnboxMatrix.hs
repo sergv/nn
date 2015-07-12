@@ -42,7 +42,7 @@ import Util.Zippable
 data UnboxMatrix a = UnboxMatrix
   { umRows    :: {-# UNPACK #-} !Int
   , umColumns :: {-# UNPACK #-} !Int
-  , umData    :: {-# UNPACK #-} !(U.Vector a)
+  , umData    :: !(U.Vector a)
   }
   deriving (Show, Eq, Ord)
 
@@ -138,5 +138,5 @@ vecTakeBy
   -> U.Vector a
   -> [U.Vector a]
 vecTakeBy rows cols vs =
-  map (\r -> {-U.unsafeSlice-} U.slice (r *! cols) cols vs) [0..rows -! 1]
+  map (\r -> U.unsafeSlice (r *! cols) cols vs) [0..rows -! 1]
 
