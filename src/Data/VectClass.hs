@@ -24,6 +24,7 @@ import qualified Control.Monad as L (replicateM)
 import qualified Data.List as L
 import Data.Vector (Vector)
 import qualified Data.Vector as V
+import qualified Data.Vector.Storable as S
 import qualified Data.Vector.Unboxed as U
 import Prelude (Num(..), Eq(..), ($), Int, Monad, error, otherwise, (.))
 import qualified Prelude as P
@@ -134,6 +135,32 @@ instance Vect UnboxConstraint U.Vector where
   reverse    = U.reverse
   length     = U.length
   replicateM = U.replicateM
+
+instance Vect StorableConstraint S.Vector where
+  {-# INLINABLE fromList   #-}
+  {-# INLINABLE toList     #-}
+  {-# INLINABLE replicate  #-}
+  {-# INLINABLE map        #-}
+  {-# INLINABLE sum        #-}
+  {-# INLINABLE (.+.)      #-}
+  {-# INLINABLE monoFoldr  #-}
+  {-# INLINABLE foldr1     #-}
+  {-# INLINABLE empty      #-}
+  {-# INLINABLE reverse    #-}
+  {-# INLINABLE length     #-}
+  {-# INLINABLE replicateM #-}
+  fromList   = S.fromList
+  toList     = S.toList
+  replicate  = S.replicate
+  map        = S.map
+  sum        = S.sum
+  (.+.)      = zipWith (+!)
+  monoFoldr  = S.foldr
+  foldr1     = S.foldr1
+  empty      = S.empty
+  reverse    = S.reverse
+  length     = S.length
+  replicateM = S.replicateM
 
 instance TransposableVector NoConstraints Vector where
   transpose xss

@@ -19,6 +19,7 @@ module Util.Zippable where
 import qualified Data.List as L
 import Data.Vector (Vector)
 import qualified Data.Vector as V
+import qualified Data.Vector.Storable as S
 import qualified Data.Vector.Unboxed as U
 
 import Util.ConstrainedFunctor
@@ -57,3 +58,11 @@ instance Zippable UnboxConstraint U.Vector where
   zipWith  = U.zipWith
   zipWith3 = U.zipWith3
   zipWith4 = U.zipWith4
+
+instance Zippable StorableConstraint S.Vector where
+  {-# INLINABLE zipWith  #-}
+  {-# INLINABLE zipWith3 #-}
+  {-# INLINABLE zipWith4 #-}
+  zipWith  = S.zipWith
+  zipWith3 = S.zipWith3
+  zipWith4 = S.zipWith4

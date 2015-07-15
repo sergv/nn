@@ -21,21 +21,25 @@
 module Util.ConstrainedFunctor where
 
 import qualified Data.Vector as V
+import Foreign (Storable)
+import qualified Data.Vector.Storable as S
 import Data.Vector.Unboxed (Unbox)
 import qualified Data.Vector.Unboxed as U
 import GHC.Exts (Constraint)
 
-data NoConstraints
-data UnboxConstraint
 data IsDoubleConstraint
+data NoConstraints
+data StorableConstraint
+data UnboxConstraint
 
 class IdConstraint a
 instance IdConstraint a
 
 type family ElemConstraints k :: * -> Constraint
-type instance ElemConstraints NoConstraints      = IdConstraint
-type instance ElemConstraints UnboxConstraint    = Unbox
 type instance ElemConstraints IsDoubleConstraint = (~) Double
+type instance ElemConstraints NoConstraints      = IdConstraint
+type instance ElemConstraints StorableConstraint = Storable
+type instance ElemConstraints UnboxConstraint    = Unbox
 
 class ConstrainedFunctor k f | f -> k where
   cfmap :: (ElemConstraints k a, ElemConstraints k b) => (a -> b) -> f a -> f b
@@ -51,4 +55,8 @@ instance ConstrainedFunctor NoConstraints V.Vector where
 instance ConstrainedFunctor UnboxConstraint U.Vector where
   {-# INLINABLE cfmap #-}
   cfmap = U.map
+
+instance ConstrainedFunctor StorableConstraint S.Vector where
+  {-# INLINABLE cfmap #-}
+  cfmap = S.map
 
