@@ -23,7 +23,7 @@
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE UndecidableInstances  #-}
 
-module Data.UnboxMatrixWithTranspose (UnboxMatrixWithTranspose, mkUnboxMatrixWithTranspose) where
+module Data.UnboxMatrixWithTranspose (UnboxMatrixWithTranspose, mkMatrixWithTranspose) where
 
 import Prelude hiding (zipWith, zipWith3)
 import Control.DeepSeq
@@ -88,7 +88,7 @@ instance (ElemConstraints UnboxConstraint a) => NFData (UnboxMatrixWithTranspose
 instance ConstrainedFunctor UnboxConstraint UnboxMatrixWithTranspose where
   {-# INLINABLE cfmap #-}
   cfmap f (UnboxMatrixWithTranspose rows cols xs _) =
-    mkUnboxMatrixWithTranspose rows cols $ cfmap f xs
+    mkMatrixWithTranspose rows cols $ cfmap f xs
 
 instance Zippable UnboxConstraint UnboxMatrixWithTranspose where
   {-# INLINABLE zipWith  #-}
@@ -96,15 +96,15 @@ instance Zippable UnboxConstraint UnboxMatrixWithTranspose where
   {-# INLINABLE zipWith4 #-}
   zipWith f (UnboxMatrixWithTranspose xRows xCols xs _) (UnboxMatrixWithTranspose yRows yCols ys _)
     | xRows == yRows && xCols == yCols =
-      mkUnboxMatrixWithTranspose xRows xCols $ zipWith f xs ys
+      mkMatrixWithTranspose xRows xCols $ zipWith f xs ys
     | otherwise = error "UnboxMatrixWithTranspose.zipWith: cannot zip matrices of different shapes"
   zipWith3 f (UnboxMatrixWithTranspose xRows xCols xs _) (UnboxMatrixWithTranspose yRows yCols ys _) (UnboxMatrixWithTranspose zRows zCols zs _)
     | xRows == yRows && yRows == zRows && xCols == yCols && yCols == zCols =
-      mkUnboxMatrixWithTranspose xRows xCols $ zipWith3 f xs ys zs
+      mkMatrixWithTranspose xRows xCols $ zipWith3 f xs ys zs
     | otherwise = error "UnboxMatrixWithTranspose.zipWith3: cannot zip matrices of different shapes"
   zipWith4 f (UnboxMatrixWithTranspose xRows xCols xs _) (UnboxMatrixWithTranspose yRows yCols ys _) (UnboxMatrixWithTranspose zRows zCols zs _) (UnboxMatrixWithTranspose wRows wCols ws _)
     | xRows == yRows && yRows == zRows && zRows == wRows && xCols == yCols && yCols == zCols && zCols == wCols =
-      mkUnboxMatrixWithTranspose xRows xCols $ zipWith4 f xs ys zs ws
+      mkMatrixWithTranspose xRows xCols $ zipWith4 f xs ys zs ws
     | otherwise = error "UnboxMatrixWithTranspose.zipWith4: cannot zip matrices of different shapes"
 
 instance Matrix UnboxConstraint UnboxMatrixWithTranspose U.Vector where
@@ -117,7 +117,7 @@ instance Matrix UnboxConstraint UnboxMatrixWithTranspose U.Vector where
     error "UnboxMatrixWithTranspose.fromList: cannot create PureMatrix from empty list of rows"
   fromList wss@(ws:_)
     | cols /= 0 && all (== cols) (L.map length wss) =
-      mkUnboxMatrixWithTranspose rows cols matrixData
+      mkMatrixWithTranspose rows cols matrixData
     | otherwise =
       error $ "UnboxMatrixWithTranspose.fromList: cannot create PureMatrix from list " ++ show wss
     where
@@ -128,9 +128,9 @@ instance Matrix UnboxConstraint UnboxMatrixWithTranspose U.Vector where
   rows    = umtRows
   columns = umtColumns
   replicateM rows cols action =
-    mkUnboxMatrixWithTranspose rows cols <$> VC.replicateM (rows *! cols) action
+    mkMatrixWithTranspose rows cols <$> VC.replicateM (rows *! cols) action
   outerProduct columnVec rowVec =
-    mkUnboxMatrixWithTranspose rows cols matrixData
+    mkMatrixWithTranspose rows cols matrixData
     where
       rows = VC.length columnVec
       cols = VC.length rowVec
@@ -140,14 +140,14 @@ instance Matrix UnboxConstraint UnboxMatrixWithTranspose U.Vector where
   transpose (UnboxMatrixWithTranspose rows cols xs xsT) =
     UnboxMatrixWithTranspose cols rows xsT xs
 
-{-# INLINABLE mkUnboxMatrixWithTranspose #-}
-mkUnboxMatrixWithTranspose
+{-# INLINABLE mkMatrixWithTranspose #-}
+mkMatrixWithTranspose
   :: (ElemConstraints UnboxConstraint a)
   => Int
   -> Int
   -> U.Vector a
   -> UnboxMatrixWithTranspose a
-mkUnboxMatrixWithTranspose rows cols matrixData =
+mkMatrixWithTranspose rows cols matrixData =
   UnboxMatrixWithTranspose
     { umtRows    = rows
     , umtColumns = cols
