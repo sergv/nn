@@ -83,6 +83,7 @@ instance Vect NoConstraints Vector where
   reverse    = V.reverse
   length     = V.length
   replicateM = V.replicateM
+  dot xs ys  = V.sum $ V.zipWith (*!) xs ys
 
 instance Vect NoConstraints [] where
   {-# INLINABLE fromList   #-}
@@ -109,6 +110,7 @@ instance Vect NoConstraints [] where
   reverse    = L.reverse
   length     = L.length
   replicateM = L.replicateM
+  dot xs ys  = L.sum $ L.zipWith (*!) xs ys
 
 instance Vect UnboxConstraint U.Vector where
   {-# INLINABLE fromList   #-}
@@ -135,6 +137,7 @@ instance Vect UnboxConstraint U.Vector where
   reverse    = U.reverse
   length     = U.length
   replicateM = U.replicateM
+  dot xs ys  = U.sum $ U.zipWith (*!) xs ys
 
 instance Vect StorableConstraint S.Vector where
   {-# INLINABLE fromList   #-}
@@ -161,6 +164,7 @@ instance Vect StorableConstraint S.Vector where
   reverse    = S.reverse
   length     = S.length
   replicateM = S.replicateM
+  dot xs ys  = S.sum $ S.zipWith (*!) xs ys
 
 instance TransposableVector NoConstraints Vector where
   transpose xss

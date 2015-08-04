@@ -78,18 +78,19 @@ instance Vect IsDoubleConstraint StorableVectorDouble where
   {-# INLINABLE reverse    #-}
   {-# INLINABLE length     #-}
   {-# INLINABLE replicateM #-}
-  fromList           = StorableVectorDouble . S.fromList
-  toList             = S.toList . getStorableVectorDouble
-  replicate n        = StorableVectorDouble . S.replicate n
-  map f              = StorableVectorDouble . S.map f . getStorableVectorDouble
-  sum                = S.sum . getStorableVectorDouble
-  (.+.)              = zipWith (+!)
-  monoFoldr f acc    = S.foldr f acc . getStorableVectorDouble
-  foldr1 f           = S.foldr1 f . getStorableVectorDouble
-  empty              = StorableVectorDouble S.empty
-  reverse            = StorableVectorDouble . S.reverse . getStorableVectorDouble
-  length             = S.length . getStorableVectorDouble
-  replicateM n       = fmap StorableVectorDouble . S.replicateM n
+  fromList        = StorableVectorDouble . S.fromList
+  toList          = S.toList . getStorableVectorDouble
+  replicate n     = StorableVectorDouble . S.replicate n
+  map f           = StorableVectorDouble . S.map f . getStorableVectorDouble
+  sum             = S.sum . getStorableVectorDouble
+  (.+.)           = zipWith (+!)
+  monoFoldr f acc = S.foldr f acc . getStorableVectorDouble
+  foldr1 f        = S.foldr1 f . getStorableVectorDouble
+  empty           = StorableVectorDouble S.empty
+  reverse         = StorableVectorDouble . S.reverse . getStorableVectorDouble
+  length          = S.length . getStorableVectorDouble
+  replicateM n    = fmap StorableVectorDouble . S.replicateM n
+  dot (StorableVectorDouble xs) (StorableVectorDouble ys) = S.sum $ S.zipWith (*!) xs ys
 
 {-# INLINABLE concatMap #-}
 concatMap
