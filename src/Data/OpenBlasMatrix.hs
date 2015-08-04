@@ -40,15 +40,15 @@ import System.IO.Unsafe
 
 import Data.ConstrainedConvert (Convert)
 import qualified Data.ConstrainedConvert as Conv
+import Data.ConstrainedFunctor
 import Data.OpenBlasMatrix.Foreign
 import Data.StorableMatrixWithTranspose (StorableMatrixWithTranspose(..))
 import Data.StorableVectorDouble (StorableVectorDouble(..))
 import qualified Data.StorableVectorDouble as SVD
 import Data.MatrixClass
 import qualified Data.VectClass as VC
+import Data.Zippable
 import Util
-import Util.ConstrainedFunctor
-import Util.Zippable
 
 -- import Debug.Trace
 

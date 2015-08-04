@@ -24,11 +24,11 @@ import Data.OpenBlasMatrix (OpenBlasMatrix)
 import Data.PureMatrix (PureMatrix)
 import Data.UnboxMatrix (UnboxMatrix)
 import Data.UnboxMatrixWithTranspose (UnboxMatrixWithTranspose)
+import Data.ConstrainedFunctor
 import Data.MatrixClass (Matrix)
 import qualified Data.MatrixClass as MC
 import Data.VectClass (Vect)
 import qualified Data.VectClass as VC
-import Util.ConstrainedFunctor
 
 tests :: TestTree
 tests = testGroup "Matrix tests"

@@ -1,6 +1,6 @@
 ----------------------------------------------------------------------------
 -- |
--- Module      :  Util.Zippable
+-- Module      :  Data.Zippable
 -- Copyright   :  (c) Sergey Vinokurov 2015
 -- License     :  BSD3-style (see LICENSE)
 --
@@ -14,7 +14,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MultiParamTypeClasses  #-}
 
-module Util.Zippable where
+module Data.Zippable where
 
 import qualified Data.List as L
 import Data.Vector (Vector)
@@ -22,7 +22,7 @@ import qualified Data.Vector as V
 import qualified Data.Vector.Storable as S
 import qualified Data.Vector.Unboxed as U
 
-import Util.ConstrainedFunctor
+import Data.ConstrainedFunctor
 
 class Zippable k f | f -> k where
   zipWith

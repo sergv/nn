@@ -23,14 +23,14 @@ module NN where
 import Control.Monad.Except
 import Data.Vector (Vector)
 
+import Data.ConstrainedFunctor
 import qualified Data.MatrixClass as MC
 import qualified Data.VectClass as VC
+import Data.Zippable
 import qualified NN.Generic as G
 import qualified NN.Specific as S
 import Nonlinearity
 import Util
-import Util.ConstrainedFunctor
-import Util.Zippable
 
 class NNVectorLike k (nn :: * -> *) a | nn -> k where
   -- z = x + b * y

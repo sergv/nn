@@ -1,6 +1,6 @@
 ----------------------------------------------------------------------------
 -- |
--- Module      :  Util.V3
+-- Module      :  Data.V3
 -- Copyright   :  (c) Sergey Vinokurov 2015
 -- License     :  BSD3-style (see LICENSE)
 --
@@ -15,7 +15,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies          #-}
 
-module Util.V3 where
+module Data.V3 where
 
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Generic.Mutable as GM

@@ -20,7 +20,7 @@ import Prelude hiding (map)
 
 import Data.VectClass (Vect)
 import qualified Data.VectClass as VC
-import Util.ConstrainedFunctor
+import Data.ConstrainedFunctor
 
 class (Vect k v) => Matrix k w v | w -> v k where
   fromList   :: (ElemConstraints k a, Show a) => [[a]] -> w a

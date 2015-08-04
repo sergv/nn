@@ -36,13 +36,13 @@ import Data.UnboxMatrix (UnboxMatrix)
 import Data.UnboxMatrixWithTranspose (UnboxMatrixWithTranspose)
 import qualified Data.VectorDouble as VD
 import qualified Data.Text.Lazy as T
+import Data.ConstrainedFunctor
 import NN (NNVectorLike)
 import qualified NN
 import qualified NN.Specific as S
 import qualified NN.Generic as G
 import Nonlinearity
 import Util
-import Util.ConstrainedFunctor
 
 import Test.Tasty
 import Test.Tasty.HUnit

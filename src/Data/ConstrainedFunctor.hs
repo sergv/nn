@@ -18,7 +18,7 @@
 {-# LANGUAGE MultiParamTypeClasses  #-}
 {-# LANGUAGE TypeFamilies           #-}
 
-module Util.ConstrainedFunctor where
+module Data.ConstrainedFunctor where
 
 import qualified Data.Vector as V
 import Foreign (Storable)

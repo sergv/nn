@@ -30,7 +30,7 @@ import qualified Data.Vector as V
 import Text.PrettyPrint.Leijen.Text (Doc, Pretty(..))
 import qualified Text.PrettyPrint.Leijen.Text as PP
 
-import Util.ConstrainedFunctor
+import Data.ConstrainedFunctor
 
 -- Other utils
 

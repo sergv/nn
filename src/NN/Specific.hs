@@ -43,10 +43,10 @@ import Data.Random.Source.PureMT ()
 
 import Data.ConstrainedConvert (Convert)
 import qualified Data.ConstrainedConvert as Conv
+import Data.ConstrainedFunctor
+import Data.Zippable
 import Nonlinearity
 import Util
-import Util.ConstrainedFunctor
-import Util.Zippable
 
 -- import Debug.Trace
 

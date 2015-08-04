@@ -22,14 +22,14 @@ module LearningAlgorithms where
 import Data.Vector (Vector)
 import Text.Printf
 
+import Data.V3
 import Data.ConstrainedConvert (Convert)
+import Data.ConstrainedFunctor
 import qualified Data.ConstrainedConvert as Conv
+import Data.Zippable
 import NN (NeuralNetwork, NNVectorLike)
 import qualified NN as NN
 import Util
-import Util.ConstrainedFunctor
-import Util.V3
-import Util.Zippable
 
 
 import Debug.Trace

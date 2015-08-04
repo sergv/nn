@@ -40,10 +40,9 @@ import Data.MatrixClass
 import Data.VectClass (Vect, TransposableVector)
 import qualified Data.VectClass as VC
 
+import Data.ConstrainedFunctor
+import Data.Zippable
 import Util
-import Util.ConstrainedFunctor
-import Util.Zippable
-
 
 data PureMatrix v a = PureMatrix
   { pmRows    :: {-# UNPACK #-} !Int

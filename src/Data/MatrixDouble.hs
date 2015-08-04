@@ -33,13 +33,13 @@ import qualified Data.Vector.Unboxed as U
 import Text.PrettyPrint.Leijen.Text (Pretty(..), Doc)
 import qualified Text.PrettyPrint.Leijen.Text as PP
 
+import Data.ConstrainedFunctor
 import Data.VectorDouble (VectorDouble)
 import qualified Data.VectorDouble as VD
 import Data.MatrixClass
 import qualified Data.VectClass as VC
+import Data.Zippable
 import Util
-import Util.ConstrainedFunctor
-import Util.Zippable
 
 data MatrixDouble a = MatrixDouble
   { mdRows    :: {-# UNPACK #-} !Int

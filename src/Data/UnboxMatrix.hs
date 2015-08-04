@@ -35,11 +35,11 @@ import qualified Text.PrettyPrint.Leijen.Text as PP
 
 import Data.ConstrainedConvert (Convert)
 import qualified Data.ConstrainedConvert as Conv
+import Data.ConstrainedFunctor
 import Data.MatrixClass
 import qualified Data.VectClass as VC
+import Data.Zippable
 import Util
-import Util.ConstrainedFunctor
-import Util.Zippable
 
 data UnboxMatrix a = UnboxMatrix
   { umRows    :: {-# UNPACK #-} !Int

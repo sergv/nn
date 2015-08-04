@@ -46,16 +46,18 @@ import qualified Text.PrettyPrint.Leijen.Text as PP
 import Data.Random.Source.PureMT ()
 import Numeric.AD hiding (grad, Grad)
 
+import Data.UnboxMatrix (UnboxMatrix)
+import Data.UnboxMatrixWithTranspose (UnboxMatrixWithTranspose)
 import Data.ConstrainedConvert (Convert)
 import qualified Data.ConstrainedConvert as Conv
+import Data.ConstrainedFunctor
 import Data.MatrixClass (Matrix)
 import qualified Data.MatrixClass as MC
 import Data.VectClass (Vect, (.+.))
 import qualified Data.VectClass as VC
+import Data.Zippable
 import Nonlinearity
 import Util
-import Util.ConstrainedFunctor
-import Util.Zippable
 
 -- import Debug.Trace
 

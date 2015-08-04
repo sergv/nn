@@ -29,9 +29,9 @@ import qualified Data.Vector.Unboxed as U
 import Prelude (Num(..), Eq(..), ($), Int, Monad, error, otherwise, (.))
 import qualified Prelude as P
 
+import Data.ConstrainedFunctor
+import Data.Zippable
 import Util
-import Util.ConstrainedFunctor
-import Util.Zippable
 
 class (Zippable k v) => Vect k v | v -> k where
   fromList   :: (ElemConstraints k a) => [a] -> v a

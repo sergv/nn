@@ -31,11 +31,11 @@ import Control.DeepSeq
 import qualified Data.Vector.Unboxed as U
 import Text.PrettyPrint.Leijen.Text (Pretty(..))
 
+import Data.ConstrainedFunctor
 import Data.VectClass (Vect, (.+.))
 import qualified Data.VectClass as VC
+import Data.Zippable
 import Util
-import Util.ConstrainedFunctor
-import Util.Zippable
 
 newtype VectorDouble a = VectorDouble { getVectorDouble :: U.Vector Double }
   deriving (NFData)

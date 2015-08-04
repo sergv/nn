@@ -35,11 +35,11 @@ import Text.PrettyPrint.Leijen.Text (Pretty(..))
 
 import Data.ConstrainedConvert (Convert)
 import qualified Data.ConstrainedConvert as Conv
+import Data.ConstrainedFunctor
 import Data.VectClass (Vect, (.+.))
 import qualified Data.VectClass as VC
+import Data.Zippable
 import Util
-import Util.ConstrainedFunctor
-import Util.Zippable
 
 newtype StorableVectorDouble a = StorableVectorDouble { getStorableVectorDouble :: S.Vector Double }
   deriving (Show, Eq, Ord, NFData)

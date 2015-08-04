@@ -20,7 +20,7 @@ import qualified Data.Vector as V
 import qualified Data.Vector.Storable as S
 import qualified Data.Vector.Unboxed as U
 
-import Util.ConstrainedFunctor
+import Data.ConstrainedFunctor
 
 class Convert k k' f f' | f -> k f' k', f' -> k' where
   convertTo   :: (ElemConstraints k a, ElemConstraints k' a) => f a  -> f' a

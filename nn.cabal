@@ -12,16 +12,19 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     Data.ConstrainedConvert
+                       Data.ConstrainedFunctor
                        Data.MatrixDouble
                        Data.OpenBlasMatrix
                        Data.OpenBlasMatrix.Foreign
                        Data.PureMatrix
                        Data.StorableMatrixWithTranspose
                        Data.StorableVectorDouble
+                       Data.V3
                        Data.VectClass
                        Data.VectorDouble
                        Data.UnboxMatrix
                        Data.UnboxMatrixWithTranspose
+                       Data.Zippable
                        Data.MatrixClass
                        LearningAlgorithms
                        NN
@@ -29,9 +32,6 @@ library
                        NN.Specific
                        Nonlinearity
                        Util
-                       Util.ConstrainedFunctor
-                       Util.V3
-                       Util.Zippable
   build-depends:       base >=4.6, text, mtl, vector, random,
                        reflection, ad, random-source, random-fu, free, deepseq,
                        wl-pprint-text
@@ -43,8 +43,13 @@ library
                        -fno-warn-type-defaults
                        -ferror-spans
                        -rtsopts
-                       -fllvm -O2 -optlc=-O3 -optlo=-O3
-                       -funfolding-creation-threshold=1000  -funfolding-use-threshold=1000
+                       -- -fllvm -O2 -optlc=-O3 -optlo=-O3
+                       -- -funfolding-creation-threshold=1000  -funfolding-use-threshold=1000
+                       --
+                       -- -optlo=-mcpu=core-avx2
+                       -- -optlo=-mattr=+64bit-mode,+sse2,+sse3,+sse4.1,+sse4.2
+                       -- -optlc=-mcpu=core-avx2
+                       -- -optlc=-mattr=+64bit-mode,+sse2,+sse3,+sse4.1,+sse4.2
   ghc-prof-options:    -fprof-auto
   build-tools:         c2hs
   includes:            cblas.h
@@ -65,8 +70,12 @@ executable nn
                        -fno-warn-name-shadowing
                        -ferror-spans
                        -rtsopts
-                       -fllvm -O2 -optlc=-O3 -optlo=-O3
-                       -funfolding-creation-threshold=1000  -funfolding-use-threshold=1000
+                       -- -fllvm -O2 -optlc=-O3 -optlo=-O3
+                       -- -funfolding-creation-threshold=1000  -funfolding-use-threshold=1000
+                       -- -optlo=-mcpu=core-avx2
+                       -- -optlo=-mattr=+64bit-mode,+sse2,+sse3,+sse4.1,+sse4.2
+                       -- -optlc=-mcpu=core-avx2
+                       -- -optlc=-mattr=+64bit-mode,+sse2,+sse3,+sse4.1,+sse4.2
   ghc-prof-options:    -fprof-auto
 
 test-suite test-nn
