@@ -47,7 +47,7 @@ import Util
 data PureMatrix v a = PureMatrix
   { pmRows    :: {-# UNPACK #-} !Int
   , pmColumns :: {-# UNPACK #-} !Int
-  , pmData    :: {-# UNPACK #-} !(v (v a))
+  , pmData    :: !(v (v a))
   }
   deriving (Functor, Foldable, Traversable)
 
