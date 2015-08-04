@@ -39,7 +39,15 @@ import Foreign.C.Types
  #}
 
 newtype BlasOrder     = BlasOrder ({#type CBLAS_ORDER#}) deriving (Show, Eq, Ord)
+
+rowMajorOrder :: BlasOrder
+rowMajorOrder = BlasOrder $ fromIntegral $ fromEnum RowMajor
+
 newtype BlasTranspose = BlasTranspose ({#type CBLAS_TRANSPOSE#}) deriving (Show, Eq, Ord)
+
+noTranspose :: BlasTranspose
+noTranspose = BlasTranspose $ fromIntegral $ fromEnum NoTranspose
+
 newtype BlasInt       = BlasInt ({#type blasint#}) deriving (Show, Eq, Ord)
 newtype Size          = Size ({#type blasint#}) deriving (Show, Eq, Ord)
 
@@ -69,4 +77,28 @@ foreign import ccall unsafe "cblas_dgemv" dgemv
   -> Double
   -> Ptr Double
   -> BlasInt
+  -> IO ()
+
+-- void cblas_dger(
+--         OPENBLAS_CONST enum CBLAS_ORDER order,
+--         OPENBLAS_CONST blasint M,
+--         OPENBLAS_CONST blasint N,
+--         OPENBLAS_CONST double  alpha,
+--         OPENBLAS_CONST double *X,
+--         OPENBLAS_CONST blasint incX,
+--         OPENBLAS_CONST double *Y,
+--         OPENBLAS_CONST blasint incY,
+--         double *A,
+--         OPENBLAS_CONST blasint lda);
+foreign import ccall unsafe "cblas_dger" dger
+  :: BlasOrder
+  -> Size
+  -> Size
+  -> Double
+  -> Ptr Double
+  -> BlasInt
+  -> Ptr Double
+  -> BlasInt
+  -> Ptr Double
+  -> Size
   -> IO ()

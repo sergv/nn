@@ -32,8 +32,6 @@ import Data.Monoid
 import qualified Data.List as L
 import qualified Data.Vector.Storable as S
 import qualified Data.Vector.Storable.Mutable as SM
-import Foreign
-import Foreign.C
 import Text.PrettyPrint.Leijen.Text (Pretty(..), Doc)
 import qualified Text.PrettyPrint.Leijen.Text as PP
 import System.IO.Unsafe
@@ -136,11 +134,35 @@ instance Matrix IsDoubleConstraint OpenBlasMatrix StorableVectorDouble where
   replicateM rows cols action =
     mkMatrixWithTranspose rows cols <$> VC.replicateM (rows *! cols) action
   outerProduct columnVec rowVec =
-    mkMatrixWithTranspose rows cols matrixData
+    -- mkMatrixWithTranspose rows cols matrixData
+    -- where
+    --   rows  = VC.length columnVec
+    --   cols  = VC.length rowVec
+    --   matrixData = S.concatMap (\c -> getStorableVectorDouble $ cfmap (c *!) rowVec) $ getStorableVectorDouble columnVec
+    unsafePerformIO $ do
+      matrixData <- SM.replicate (rows *! cols) 0
+      SVD.unsafeWith columnVec $ \columnVecPtr ->
+        SVD.unsafeWith rowVec $ \rowVecPtr ->
+          SM.unsafeWith matrixData $ \resultPtr ->
+            dger
+              rowMajorOrder
+              rows'
+              cols'
+              1.0
+              columnVecPtr
+              incx
+              rowVecPtr
+              incy
+              resultPtr
+              cols'
+      mkMatrixWithTranspose rows cols <$> S.freeze matrixData
     where
-      rows = VC.length columnVec
-      cols = VC.length rowVec
-      matrixData = S.concatMap (\c -> getStorableVectorDouble $ cfmap (c *!) rowVec) $ getStorableVectorDouble columnVec
+      rows  = VC.length columnVec
+      cols  = VC.length rowVec
+      rows' = Size $ fromIntegral rows
+      cols' = Size $ fromIntegral cols
+      incx  = BlasInt 1
+      incy  = incx
   vecMulRight (OpenBlasMatrix rows cols xs _) ys =
     -- VC.fromList $ L.map (\zs -> VC.dot zs ys) $ vecTakeBy rows cols xs
     -- trace ("rows = " ++ show rows ++ ", cols = " ++ show cols ++ ", xs = " ++ show xs ++ ", ys = " ++ show ys) $
@@ -150,8 +172,8 @@ instance Matrix IsDoubleConstraint OpenBlasMatrix StorableVectorDouble where
         SVD.unsafeWith ys $ \vectorPtr ->
           SM.unsafeWith zs $ \resultPtr ->
             dgemv
-              (BlasOrder $ fromIntegral $ fromEnum RowMajor)
-              (BlasTranspose $ fromIntegral $ fromEnum NoTranspose)
+              rowMajorOrder
+              noTranspose
               rows'       -- m
               cols'       -- n
               1           -- alpha
