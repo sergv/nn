@@ -41,6 +41,8 @@ import Numeric.AD hiding (gradientDescent, Grad)
 
 import Data.Random.Source.PureMT ()
 
+import Data.ConstrainedConvert (Convert)
+import qualified Data.ConstrainedConvert as Conv
 import Nonlinearity
 import Util
 import Util.ConstrainedFunctor
@@ -88,6 +90,12 @@ instance Zippable NoConstraints (NN n o) where
   zipWith  = nnZipWith
   zipWith3 = nnZipWith3
   zipWith4 = nnZipWith4
+
+instance Convert NoConstraints NoConstraints (NN n o) (NN n o) where
+  {-# INLINABLE convertTo   #-}
+  {-# INLINABLE convertFrom #-}
+  convertTo   = id
+  convertFrom = id
 
 toWeightList :: NN n o a -> [[[a]]]
 toWeightList (NN hiddenWeights finalWeights) =

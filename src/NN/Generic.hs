@@ -46,6 +46,8 @@ import qualified Text.PrettyPrint.Leijen.Text as PP
 import Data.Random.Source.PureMT ()
 import Numeric.AD hiding (grad, Grad)
 
+import Data.ConstrainedConvert (Convert)
+import qualified Data.ConstrainedConvert as Conv
 import Data.MatrixClass (Matrix)
 import qualified Data.MatrixClass as MC
 import Data.VectClass (Vect, (.+.))
@@ -87,6 +89,18 @@ instance (Matrix k w v, Zippable k w, Vect k v) => Zippable k (NN w v n o) where
   zipWith  = nnZipWith
   zipWith3 = nnZipWith3
   zipWith4 = nnZipWith4
+
+instance (Convert k k' w w', Convert k k' v v') => Convert k k' (NN w v n o) (NN w' v' n o) where
+  {-# INLINABLE convertTo   #-}
+  {-# INLINABLE convertFrom #-}
+  convertTo   (NN hiddenLayers finalLayer) =
+    NN (V.map conv hiddenLayers) (conv finalLayer)
+    where
+      conv = Conv.convertTo *** Conv.convertTo
+  convertFrom (NN hiddenLayers finalLayer) = id
+    NN (V.map conv hiddenLayers) (conv finalLayer)
+    where
+      conv = Conv.convertFrom *** Conv.convertFrom
 
 toWeightList
   :: forall k w v n o a. (Matrix k w v, Vect k v, ElemConstraints k a)

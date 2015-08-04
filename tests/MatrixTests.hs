@@ -20,8 +20,9 @@ import Data.Proxy
 import Test.Tasty
 import Test.Tasty.HUnit
 
-import Data.PureMatrix (PureMatrix(..))
-import Data.UnboxMatrix (UnboxMatrix(..))
+import Data.OpenBlasMatrix (OpenBlasMatrix)
+import Data.PureMatrix (PureMatrix)
+import Data.UnboxMatrix (UnboxMatrix)
 import Data.UnboxMatrixWithTranspose (UnboxMatrixWithTranspose)
 import Data.MatrixClass (Matrix)
 import qualified Data.MatrixClass as MC
@@ -34,11 +35,12 @@ tests = testGroup "Matrix tests"
   [ matrixTests "PureMatrix" pureMatrixProxy
   , matrixTests "UnboxMatrix" unboxMatrixProxy
   , matrixTests "UnboxMatrixWithTranspose" unboxMatrixWithTransposeProxy
+  , matrixTests "OpenBlasMatrix" openBlasMatrixProxy
   ]
 
 matrixTests
   :: forall k w v. (Vect k v, Matrix k w v)
-  => (ElemConstraints k Int, Show (w Int), Eq (w Int), Show (v Int), Eq (v Int))
+  => (ElemConstraints k Double, Show (w Double), Eq (w Double), Show (v Double), Eq (v Double))
   => String
   -> Proxy w
   -> TestTree
@@ -51,9 +53,13 @@ matrixTests name _ = testGroup name
     --- | 2 | * [ 10, 20 ] = | 2 * 10, 2 * 20 | = | 20, 40 |
     --- | 3 |                | 3 * 10, 3 * 20 |   | 30, 60 |
   , testCase "outer product #1" $
-    MC.outerProduct (ivec [1, 2, 3]) (ivec [10, 20]) @?= (imat [[10, 20], [20, 40], [30, 60]] :: w Int)
+    MC.outerProduct (ivec [1, 2, 3]) (ivec [10, 20]) @?= (imat [[10, 20], [20, 40], [30, 60]] :: w Double)
   , testCase "vecMulRight #1" $
     MC.vecMulRight testMatrix (ivec [1, 2]) @?= ivec [5, 11, 17]
+  , testCase "vecMulRight #2" $
+    MC.vecMulRight testMatrix2 (ivec [1, 2, 3]) @?= ivec [22, 28]
+  , testCase "vecMulRight #3" $
+    MC.vecMulRight testMatrix3 (ivec [1, 2, 3]) @?= (ivec [14, 32, 50] :: v Double)
   , testCase "transpose #1" $
     MC.transpose testMatrix @?= testMatrix2
   , testCase "transpose #2" $
@@ -62,11 +68,11 @@ matrixTests name _ = testGroup name
     MC.transpose testMatrix3 @?= imat [[1, 4, 7], [2, 5, 8], [3, 6, 9]]
   ]
   where
-    testMatrix :: w Int
+    testMatrix :: w Double
     testMatrix = imat [[1, 2], [3, 4], [5, 6]]
-    testMatrix2 :: w Int
+    testMatrix2 :: w Double
     testMatrix2 = imat [[1, 3, 5], [2, 4, 6]]
-    testMatrix3 :: w Int
+    testMatrix3 :: w Double
     testMatrix3 = imat [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
 
 pureMatrixProxy :: Proxy (PureMatrix [])
@@ -78,8 +84,11 @@ unboxMatrixProxy = Proxy
 unboxMatrixWithTransposeProxy :: Proxy UnboxMatrixWithTranspose
 unboxMatrixWithTransposeProxy = Proxy
 
-ivec :: (ElemConstraints k Int, Vect k v) => [Int] -> v Int
+openBlasMatrixProxy :: Proxy OpenBlasMatrix
+openBlasMatrixProxy = Proxy
+
+ivec :: (ElemConstraints k Double, Vect k v) => [Double] -> v Double
 ivec = VC.fromList
 
-imat :: (ElemConstraints k Int, Matrix k w v) => [[Int]] -> w Int
+imat :: (ElemConstraints k Double, Matrix k w v) => [[Double]] -> w Double
 imat = MC.fromList

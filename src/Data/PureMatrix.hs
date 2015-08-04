@@ -34,6 +34,8 @@ import Data.Monoid
 import Text.PrettyPrint.Leijen.Text (Pretty(..), Doc)
 import qualified Text.PrettyPrint.Leijen.Text as PP
 
+import Data.ConstrainedConvert (Convert)
+import qualified Data.ConstrainedConvert as Conv
 import Data.MatrixClass
 import Data.VectClass (Vect, TransposableVector)
 import qualified Data.VectClass as VC
@@ -85,6 +87,12 @@ instance (Functor v, Zippable NoConstraints v) => Zippable NoConstraints (PureMa
     | xRows == yRows && yRows == zRows && zRows == wRows && xCols == yCols && yCols == zCols && zCols == wCols =
       PureMatrix xRows xCols $ zipWith4 (zipWith4 f) xss yss zss wss
     | otherwise = error "PureMatrix.zipWith4: cannot zip matrices of different shapes"
+
+instance Convert NoConstraints NoConstraints (PureMatrix v) (PureMatrix v) where
+  {-# INLINABLE convertTo   #-}
+  {-# INLINABLE convertFrom #-}
+  convertTo   = id
+  convertFrom = id
 
 instance (ConstrainedFunctor NoConstraints v, Vect NoConstraints v, TransposableVector NoConstraints v) => Matrix NoConstraints (PureMatrix v) v where
   {-# INLINABLE rows         #-}

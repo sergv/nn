@@ -22,6 +22,8 @@ module LearningAlgorithms where
 import Data.Vector (Vector)
 import Text.Printf
 
+import Data.ConstrainedConvert (Convert)
+import qualified Data.ConstrainedConvert as Conv
 import NN (NeuralNetwork, NNVectorLike)
 import qualified NN as NN
 import Util
@@ -98,8 +100,13 @@ deriving instance (Ord (nn Double)) => Ord (RPropState nn)
 
 {-# INLINABLE rprop #-}
 rprop
-  :: forall k nn v. (ConstrainedFunctor k nn, Zippable k nn, NNVectorLike k nn Double, NeuralNetwork k nn v Double)
-  => (ElemConstraints k Double , ElemConstraints k V3)
+  :: forall k nn k' nn' v.
+     -- (ConstrainedFunctor k nn, Zippable k nn,
+     --  NNVectorLike k nn Double, NeuralNetwork k nn v Double)
+     (NNVectorLike k nn Double, NeuralNetwork k nn v Double, Convert k k' nn nn')
+  => (ElemConstraints k Double)
+  => (ConstrainedFunctor k' nn', Zippable k' nn')
+  => (ElemConstraints k' Double, ElemConstraints k' V3)
   => DeltaInfo
   -> nn Double
   -> Vector (v Double, v Double)
@@ -110,8 +117,8 @@ rprop (DeltaInfo {delta0, deltaMin, deltaMax, deltaIncrease, deltaDecrease}) nn 
     (value0, gradient0) = NN.targetFunctionGrad dataset nn
     gradient0Size       = NN.size $ getGrad gradient0
 
-    initialDeltas = cfmap (const delta0) nn
-    initialGrad   = Grad $ cfmap (const 0) nn
+    initialDeltas = Conv.mapConverting (const delta0) nn
+    initialGrad   = Grad $ Conv.mapConverting (const 0) nn
     f :: RPropState nn
       -> nn Double
       -> ( Double
@@ -123,10 +130,16 @@ rprop (DeltaInfo {delta0, deltaMin, deltaMax, deltaIncrease, deltaDecrease}) nn 
       (value, gradient, nn', (RPropState deltas' (Grad prevGradient')))
       where
         (value, gradient) = NN.targetFunctionGrad dataset nn
-        upd               = zipWith4 g (getGrad prevGradient) (getGrad gradient) nn deltas
-        nn'               = cfmap (\(V3 x _ _) -> x) upd
-        deltas'           = cfmap (\(V3 _ y _) -> y) upd
-        prevGradient'     = cfmap (\(V3 _ _ z) -> z) upd
+        upd :: nn' V3
+        upd               = zipWith4
+                              g
+                              (Conv.convertTo $ getGrad prevGradient)
+                              (Conv.convertTo $ getGrad gradient)
+                              (Conv.convertTo nn)
+                              (Conv.convertTo deltas)
+        nn'               = Conv.convertFrom $ cfmap (\(V3 x _ _) -> x) upd
+        deltas'           = Conv.convertFrom $ cfmap (\(V3 _ y _) -> y) upd
+        prevGradient'     = Conv.convertFrom $ cfmap (\(V3 _ _ z) -> z) upd
 
         g :: Double -> Double -> Double -> Double -> V3
         g dwPrev dw w delta

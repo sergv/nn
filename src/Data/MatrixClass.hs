@@ -25,15 +25,14 @@ import Util.ConstrainedFunctor
 class (Vect k v) => Matrix k w v | w -> v k where
   fromList   :: (ElemConstraints k a, Show a) => [[a]] -> w a
   toList     :: (ElemConstraints k a) => w a -> [[a]]
-  rows       :: (ElemConstraints k a) => w a -> Int
-  columns    :: (ElemConstraints k a) => w a -> Int
+  rows       :: w a -> Int
+  columns    :: w a -> Int
   replicateM :: (Monad m, ElemConstraints k a)
              => Int -- ^ rows
              -> Int -- ^ columns
              -> m a -- ^ action to create individual element
              -> m (w a)
-
-  -- | Multiply column vector by row vector to obtain a matrix
+  -- | Multiply column vector by row vector to obtain a matrix.
   outerProduct :: (Num a, ElemConstraints k a) => v a -> v a -> w a
 
   vecMulRight :: (Num a, ElemConstraints k a) => w a -> v a -> v a

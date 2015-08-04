@@ -55,6 +55,7 @@ instance GM.MVector U.MVector V3 where
   basicOverlaps (MV_StrictDoubleTriple v) (MV_StrictDoubleTriple v') =
     GM.basicOverlaps v v'
   basicUnsafeNew n = MV_StrictDoubleTriple <$> GM.basicUnsafeNew n
+  basicInitialize (MV_StrictDoubleTriple xs) = GM.basicInitialize xs
   basicUnsafeReplicate n (V3 x y z) =
     MV_StrictDoubleTriple <$> GM.basicUnsafeReplicate n (x, y, z)
   basicUnsafeRead (MV_StrictDoubleTriple v) n =

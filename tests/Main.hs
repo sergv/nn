@@ -27,7 +27,10 @@ import Text.PrettyPrint.Leijen.Text (Pretty(..))
 import qualified Text.PrettyPrint.Leijen.Text as PP
 
 import Data.MatrixDouble (MatrixDouble)
+import Data.OpenBlasMatrix (OpenBlasMatrix)
 import Data.PureMatrix (PureMatrix)
+import Data.StorableVectorDouble (StorableVectorDouble)
+import qualified Data.StorableVectorDouble as SVD
 import Data.VectorDouble (VectorDouble)
 import Data.UnboxMatrix (UnboxMatrix)
 import Data.UnboxMatrixWithTranspose (UnboxMatrixWithTranspose)
@@ -149,6 +152,12 @@ nnTests = testGroup "NN.Specific tests"
       5
       [10, 10]
       5
+  , compareGradientsFromDifferentSources
+      "compare gradients from different sources #8"
+      mkInput_5_to_5
+      5
+      (replicate 10 10)
+      5
   ]
   where
     -- mkInput_1_to_1 k = ([2 * k], [k^2])
@@ -256,6 +265,14 @@ compareGradientsFromDifferentSources name mkInput inputLayerSize hiddenLayers fi
           (mkUnboxedVectorInput mkInput)
           (makeUnboxMatrixWithTransposeNN inputLayerSize hiddenLayers finalLayerSize)
           G.backprop
+      , compareNNGradients
+          "Specific vs Generic OpenBlasMatrix"
+          (mkVectorInput mkInput)
+          (makeSpecificNN inputLayerSize hiddenLayers finalLayerSize)
+          S.backprop
+          (mkStorableVectorDoubleInput mkInput)
+          (makeOpenBlasMatrixNN inputLayerSize hiddenLayers finalLayerSize)
+          G.backprop
       -- , compareNNGradients
       --     "Specific vs Generic MatrixDouble, specialized backprop"
       --     (mkVectorInput mkInput)
@@ -288,6 +305,9 @@ makeUnboxMatrixNN inputLayerSize hiddenLayerSizes finalLayerSize =
 makeUnboxMatrixWithTransposeNN :: Int -> [Int] -> Int -> State PureMT (G.NN UnboxMatrixWithTranspose U.Vector HyperbolicTangent Nonlinear Double)
 makeUnboxMatrixWithTransposeNN inputLayerSize hiddenLayerSizes finalLayerSize =
   G.makeNN inputLayerSize hiddenLayerSizes finalLayerSize (sample stdNormal)
+makeOpenBlasMatrixNN :: Int -> [Int] -> Int -> State PureMT (G.NN OpenBlasMatrix StorableVectorDouble HyperbolicTangent Nonlinear Double)
+makeOpenBlasMatrixNN inputLayerSize hiddenLayerSizes finalLayerSize =
+  G.makeNN inputLayerSize hiddenLayerSizes finalLayerSize (sample stdNormal)
 
 mkVectorInput
   :: (Double -> ([Double], [Double]))
@@ -303,6 +323,12 @@ mkUnboxedVectorInput
   :: (Double -> ([Double], [Double]))
   -> Double -> (U.Vector Double, U.Vector Double)
 mkUnboxedVectorInput mkInput = (U.fromList *** U.fromList) . mkInput
+
+mkStorableVectorDoubleInput
+  :: (Double -> ([Double], [Double]))
+  -> Double -> (StorableVectorDouble Double, StorableVectorDouble Double)
+mkStorableVectorDoubleInput mkInput = (SVD.fromList *** SVD.fromList) . mkInput
+
 
 compareGradients
   :: forall k nn v. (NNVectorLike k nn Double, Pretty (nn Double), ElemConstraints k Double)

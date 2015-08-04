@@ -29,6 +29,7 @@ import Control.Monad.State
 import qualified Data.Text.Lazy.IO as T
 import Data.Vector (Vector)
 import qualified Data.Vector as V
+import qualified Data.Vector.Storable as S
 import qualified Data.Vector.Unboxed as U
 import System.Directory
 import Text.Printf
@@ -48,7 +49,10 @@ import Data.Default.Class
 import Graphics.Rendering.Chart hiding (Vector)
 import Graphics.Rendering.Chart.Backend.Cairo
 
+import Data.OpenBlasMatrix (OpenBlasMatrix)
 import Data.PureMatrix (PureMatrix)
+import Data.StorableVectorDouble (StorableVectorDouble(..))
+import qualified Data.StorableVectorDouble as SVD
 import Data.UnboxMatrix (UnboxMatrix)
 import Data.UnboxMatrixWithTranspose (UnboxMatrixWithTranspose)
 import qualified Data.VectClass as VC
@@ -86,23 +90,30 @@ criterionConfig =
                 , reportFile = Just "/tmp/nn-benchmark.html"
                 }
 
+nnHiddenLayersSize :: [Int]
+nnHiddenLayersSize = [10, 10]
+
 mkSpecificNN :: (Applicative m, MonadRandom m) => m (NN HyperbolicTangent Nonlinear Double)
-mkSpecificNN = makeNN 1 [10, 10] 1 (sample stdNormal)
+mkSpecificNN = makeNN 1 nnHiddenLayersSize 1 (sample stdNormal)
 -- for sine dataset
 -- mkSpecificNN = makeNN hyperbolicTangentNT nonlinearOut 1 [2, 2] 1
 
 mkGenericVectorNN :: (Applicative m, MonadRandom m) => m (NG.NN (PureMatrix Vector) Vector HyperbolicTangent Nonlinear Double)
-mkGenericVectorNN = NG.makeNN 1 [10, 10] 1 (sample stdNormal)
+mkGenericVectorNN = NG.makeNN 1 nnHiddenLayersSize 1 (sample stdNormal)
 
 mkGenericListNN :: (Applicative m, MonadRandom m) => m (NG.NN (PureMatrix []) [] HyperbolicTangent Nonlinear Double)
-mkGenericListNN = NG.makeNN 1 [10, 10] 1 (sample stdNormal)
+mkGenericListNN = NG.makeNN 1 nnHiddenLayersSize 1 (sample stdNormal)
 
 mkUnboxMatrixNN :: (Applicative m, MonadRandom m) => m (NG.NN UnboxMatrix U.Vector HyperbolicTangent Nonlinear Double)
-mkUnboxMatrixNN = NG.makeNN 1 [10, 10] 1 (sample stdNormal)
+mkUnboxMatrixNN = NG.makeNN 1 nnHiddenLayersSize 1 (sample stdNormal)
 mkUnboxMatrixWithTransposeNN
   :: (Applicative m, MonadRandom m)
   => m (NG.NN UnboxMatrixWithTranspose U.Vector HyperbolicTangent Nonlinear Double)
-mkUnboxMatrixWithTransposeNN = NG.makeNN 1 [10, 10] 1 (sample stdNormal)
+mkUnboxMatrixWithTransposeNN = NG.makeNN 1 nnHiddenLayersSize 1 (sample stdNormal)
+mkOpenBlasMatrixNN
+  :: (Applicative m, MonadRandom m)
+  => m (NG.NN OpenBlasMatrix StorableVectorDouble HyperbolicTangent Nonlinear Double)
+mkOpenBlasMatrixNN = NG.makeNN 1 nnHiddenLayersSize 1 (sample stdNormal)
 
 main :: IO ()
 main = do
@@ -128,6 +139,15 @@ main = do
              (RPropState
                (NG.NN UnboxMatrixWithTranspose U.Vector HyperbolicTangent Nonlinear))
       rpropDataGUnboxMatrixWithTranspose = rprop standardDeltaInfo nnGUnboxMatrixWithTranspose unboxMatrixDataset
+  let openBlasMatrixDataset :: Vector (StorableVectorDouble Double, StorableVectorDouble Double)
+      openBlasMatrixDataset = V.map (VC.fromList . V.toList *** VC.fromList . V.toList) trainDataset
+      nnGOpenBlasMatrix = evalState mkOpenBlasMatrixNN mt
+      rpropDataGOpenBlasMatrix
+        :: IterateData
+             (NG.NN OpenBlasMatrix StorableVectorDouble HyperbolicTangent Nonlinear)
+             (RPropState
+               (NG.NN OpenBlasMatrix StorableVectorDouble HyperbolicTangent Nonlinear))
+      rpropDataGOpenBlasMatrix = rprop standardDeltaInfo nnGOpenBlasMatrix openBlasMatrixDataset
 
   defaultMainWith criterionConfig [
     --  bench "rprop specific" $
@@ -137,10 +157,13 @@ main = do
     -- , bench "rprop generic - List" $
     --   nf (constantUpdates rpropDataGList iterations) nnGList
     -- ,
-      bench "rprop generic - UnboxMatrix" $
-      nf (constantUpdates rpropDataGUnboxMatrix iterations) nnGUnboxMatrix
-    , bench "rprop generic - UnboxMatrixWithTranspose" $
+      -- bench "rprop generic - UnboxMatrix" $
+      -- nf (constantUpdates rpropDataGUnboxMatrix iterations) nnGUnboxMatrix
+    -- ,
+      bench "rprop generic - UnboxMatrixWithTranspose" $
       nf (constantUpdates rpropDataGUnboxMatrixWithTranspose iterations) nnGUnboxMatrixWithTranspose
+    , bench "rprop generic - OpenBlasMatrix" $
+      nf (constantUpdates rpropDataGOpenBlasMatrix iterations) nnGOpenBlasMatrix
     -- , bench "rprop unboxed tuple" $ nf (rprop' errInfo standardDeltaInfo nn) trainDataset
     ]
   -- void $ searchForFittingNN mt mkNN errInfo trainDataset
