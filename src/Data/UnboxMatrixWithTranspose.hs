@@ -144,7 +144,9 @@ instance Matrix UnboxConstraint UnboxMatrixWithTranspose U.Vector where
       cols = VC.length rowVec
       matrixData = U.concatMap (\c -> cfmap (c *!) rowVec) columnVec
   vecMulRight (UnboxMatrixWithTranspose rows cols xs _) ys =
-    VC.fromList $ L.map (\zs -> VC.dot zs ys) $ vecTakeBy rows cols xs
+    VC.fromList $ L.map (\zs -> VC.dot zs ys) $ uvecTakeBy rows cols xs
+    where
+
   transpose (UnboxMatrixWithTranspose rows cols xs xsT) =
     UnboxMatrixWithTranspose cols rows xsT xs
 
@@ -177,13 +179,13 @@ transposeMatrixData rows cols xs =
     , r <- [0..rows - 1]
     ]
 
-{-# INLINABLE vecTakeBy #-}
-vecTakeBy
+{-# INLINABLE uvecTakeBy #-}
+uvecTakeBy
   :: (ElemConstraints UnboxConstraint a)
   => Int
   -> Int
   -> U.Vector a
   -> [U.Vector a]
-vecTakeBy rows cols vs =
+uvecTakeBy rows cols vs =
   map (\r -> U.unsafeSlice (r *! cols) cols vs) [0..rows -! 1]
 

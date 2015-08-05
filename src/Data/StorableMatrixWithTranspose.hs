@@ -144,7 +144,7 @@ instance Matrix StorableConstraint StorableMatrixWithTranspose S.Vector where
       cols = VC.length rowVec
       matrixData = S.concatMap (\c -> cfmap (c *!) rowVec) columnVec
   vecMulRight (StorableMatrixWithTranspose rows cols xs _) ys =
-    VC.fromList $ L.map (\zs -> VC.dot zs ys) $ vecTakeBy rows cols xs
+    VC.fromList $ L.map (\zs -> VC.dot zs ys) $ svecTakeBy rows cols xs
   transpose (StorableMatrixWithTranspose rows cols xs xsT) =
     StorableMatrixWithTranspose cols rows xsT xs
 
@@ -177,13 +177,13 @@ transposeMatrixData rows cols xs =
     , r <- [0..rows - 1]
     ]
 
-{-# INLINABLE vecTakeBy #-}
-vecTakeBy
+{-# INLINABLE svecTakeBy #-}
+svecTakeBy
   :: (ElemConstraints StorableConstraint a)
   => Int
   -> Int
   -> S.Vector a
   -> [S.Vector a]
-vecTakeBy rows cols vs =
+svecTakeBy rows cols vs =
   map (\r -> S.unsafeSlice (r *! cols) cols vs) [0..rows -! 1]
 
