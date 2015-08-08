@@ -97,7 +97,7 @@ takeBy
   -> VectorDouble a
   -> [VectorDouble a]
 takeBy rows cols (VectorDouble vs) =
-  map (\r -> VectorDouble $ {-U.unsafeSlice-} U.slice (r *! cols) cols vs) [0..rows -! 1]
+  map (\r -> VectorDouble $ U.unsafeSlice {-U.slice-} (r *! cols) cols vs) [0..rows -! 1]
 
 {-# INLINABLE fromList #-}
 fromList

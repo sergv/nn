@@ -108,7 +108,7 @@ takeBy
   -> StorableVectorDouble a
   -> [StorableVectorDouble a]
 takeBy rows cols (StorableVectorDouble vs) =
-  map (\r -> StorableVectorDouble $ {-S.unsafeSlice-} S.slice (r *! cols) cols vs) [0..rows -! 1]
+  map (\r -> StorableVectorDouble $ S.unsafeSlice {-S.slice-} (r *! cols) cols vs) [0..rows -! 1]
 
 {-# INLINABLE fromList #-}
 fromList
