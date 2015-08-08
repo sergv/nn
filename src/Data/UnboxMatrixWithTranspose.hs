@@ -66,13 +66,6 @@ data UnboxMatrixWithTranspose a = UnboxMatrixWithTranspose
   }
   deriving (Show, Eq, Ord)
 
-{-# INLINABLE takeBy #-}
-takeBy :: Int -> [a] -> [[a]]
-takeBy _ [] = []
-takeBy n xs = ys : takeBy n zs
-  where
-    (ys, zs) = splitAt n xs
-
 unboxedMatrixWithTransposeToList :: (ElemConstraints UnboxConstraint a) => UnboxMatrixWithTranspose a -> [[a]]
 unboxedMatrixWithTransposeToList (UnboxMatrixWithTranspose _ cols xs _) = takeBy cols $ VC.toList xs
 

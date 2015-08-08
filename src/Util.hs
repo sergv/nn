@@ -112,3 +112,10 @@ vecTakeBy n vs =
       (map (, n) [0..lastSlice - 1] ++ [(lastSlice, lastSize) | lastSize /= 0])
   where
     (lastSlice, lastSize) = V.length vs `divMod` n
+
+{-# INLINABLE takeBy #-}
+takeBy :: Int -> [a] -> [[a]]
+takeBy _ [] = []
+takeBy n xs = ys : takeBy n zs
+  where
+    (ys, zs) = splitAt n xs

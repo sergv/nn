@@ -35,7 +35,7 @@ import Data.ConstrainedFunctor
 import Data.VectClass (Vect, (.+.))
 import qualified Data.VectClass as VC
 import Data.Zippable
-import Util
+import Util hiding (takeBy)
 
 newtype VectorDouble a = VectorDouble { getVectorDouble :: U.Vector Double }
   deriving (NFData)

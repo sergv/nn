@@ -47,13 +47,6 @@ data MatrixDouble a = MatrixDouble
   , mdData    :: {-# UNPACK #-} !(VectorDouble a)
   }
 
-{-# INLINABLE takeBy #-}
-takeBy :: Int -> [a] -> [[a]]
-takeBy _ [] = []
-takeBy n xs = ys : takeBy n zs
-  where
-    (ys, zs) = splitAt n xs
-
 unboxedMatrixToList :: (ElemConstraints IsDoubleConstraint a) => MatrixDouble a -> [[a]]
 unboxedMatrixToList (MatrixDouble _ cols xs) = takeBy cols $ VC.toList xs
 
