@@ -18,6 +18,7 @@
 
 module Data.VectorDouble
   ( VectorDouble
+  , concat
   , concatMap
   , takeBy
   , fromList
@@ -26,7 +27,7 @@ module Data.VectorDouble
   )
 where
 
-import Prelude hiding (concatMap, zipWith, zipWith3)
+import Prelude hiding (concat, concatMap, zipWith, zipWith3)
 import Control.DeepSeq
 import qualified Data.Vector.Unboxed as U
 import Text.PrettyPrint.Leijen.Text (Pretty(..))
@@ -38,7 +39,7 @@ import Data.Zippable
 import Util hiding (takeBy)
 
 newtype VectorDouble a = VectorDouble { getVectorDouble :: U.Vector Double }
-  deriving (NFData)
+  deriving (Show, Eq, Ord, NFData)
 
 instance Pretty (VectorDouble a) where
   pretty = pretty . U.toList . getVectorDouble
@@ -80,6 +81,13 @@ instance Vect IsDoubleConstraint VectorDouble where
   reverse            = VectorDouble . U.reverse . getVectorDouble
   length             = U.length . getVectorDouble
   replicateM n       = fmap VectorDouble . U.replicateM n
+
+{-# INLINABLE concat #-}
+concat
+  :: (ElemConstraints IsDoubleConstraint a, ElemConstraints IsDoubleConstraint b)
+  => [VectorDouble a]
+  -> VectorDouble a
+concat = VectorDouble . U.concat . map getVectorDouble
 
 {-# INLINABLE concatMap #-}
 concatMap

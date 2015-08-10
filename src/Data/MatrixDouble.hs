@@ -46,6 +46,7 @@ data MatrixDouble a = MatrixDouble
   , mdColumns :: {-# UNPACK #-} !Int
   , mdData    :: {-# UNPACK #-} !(VectorDouble a)
   }
+  deriving (Show, Eq, Ord)
 
 unboxedMatrixToList :: (ElemConstraints IsDoubleConstraint a) => MatrixDouble a -> [[a]]
 unboxedMatrixToList (MatrixDouble _ cols xs) = takeBy cols $ VC.toList xs
@@ -88,8 +89,11 @@ instance Matrix IsDoubleConstraint MatrixDouble VectorDouble where
   {-# INLINABLE outerProduct #-}
   {-# INLINABLE vecMulRight  #-}
   {-# INLINABLE transpose    #-}
+  {-# INLINABLE matrixMult   #-}
+  {-# INLINABLE (|+|)        #-}
+  {-# INLINABLE sumColumns   #-}
   fromList [] =
-    error "MatrixDouble.fromList: cannot create PureMatrix from empty list of rows"
+    error "MatrixDouble.fromList: cannot create MatrixDouble from empty list of rows"
   fromList wss@(ws:_)
     | columns > 0 && all (== columns) (L.map length wss) =
       MatrixDouble
@@ -98,7 +102,7 @@ instance Matrix IsDoubleConstraint MatrixDouble VectorDouble where
         , mdData    = VC.fromList $ L.concat wss
         }
     | otherwise =
-      error $ "MatrixDouble.fromList: cannot create PureMatrix from list " ++ show wss
+      error $ "MatrixDouble.fromList: cannot create MatrixDouble from list " ++ show wss
     where
       rows    = length wss
       columns = length ws
@@ -123,3 +127,29 @@ instance Matrix IsDoubleConstraint MatrixDouble VectorDouble where
               | c <- [0..cols - 1]
               , r <- [0..rows - 1]
               ]
+  matrixMult (MatrixDouble xRows xCols xs) (MatrixDouble yRows yCols ys)
+    -- This check is needed for optimization of using VC.foldr1 instead of
+    -- VC.monoFoldr. Also it's somewhat meaningless to have matrices with any
+    -- dimension equal to zero.
+    | xCols == 0     =
+      error "MatrixDouble.matrixMult: number of columns for right matrix is zero"
+    | xCols /= yRows =
+      error $ "MatrixDouble.matrixMult: number of columns for left matrix and " ++
+        "rows for right matrix mismatch: xCols = " ++ show xCols ++
+        ", yRows = " ++ show yRows
+    | otherwise      =
+      MatrixDouble xRows yCols matrixData
+    where
+      matrixData = VD.concat
+                 $ map (\xs -> VC.foldr1 (VC..+.) $ zipWith (\x ys -> cfmap (x *!) ys) xs yss) xss
+      xss = map VC.toList $ VD.takeBy xRows xCols xs
+      yss = VD.takeBy yRows yCols ys
+  (|+|) left@(MatrixDouble xRows xCols xs) right@(MatrixDouble yRows yCols ys)
+    | xRows /= yRows || xCols /= yCols =
+      error $ "Cannot add matrices of different size: " ++ showMatrixSize left ++
+        " and " ++ showMatrixSize right
+    | otherwise =
+      MatrixDouble xRows xCols $ zipWith (+!) xs ys
+  sumColumns (MatrixDouble rows cols xs) =
+    VC.fromList $ cfmap VC.sum $ VD.takeBy rows cols xs
+  sum (MatrixDouble _ _ xs) = VC.sum xs

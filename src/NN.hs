@@ -32,6 +32,8 @@ import qualified NN.Specific as S
 import Nonlinearity
 import Util
 
+import Text.PrettyPrint.Leijen.Text (Pretty(..))
+
 class NNVectorLike k (nn :: * -> *) a | nn -> k where
   -- z = x + b * y
   -- addScaled :: (Floating a) => nn a -> a -> nn a -> nn a
@@ -80,4 +82,4 @@ instance ( Nonlinearity n
          , Show a
          ) => NeuralNetwork k (G.NN w v n o) v a where
   forwardPropagate   = G.forwardPropagate
-  targetFunctionGrad = G.backprop
+  targetFunctionGrad = G.backprop 500

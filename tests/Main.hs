@@ -64,6 +64,9 @@ machineEps = 1.11022302462516e-16
 eps :: Double
 eps = sqrt $ sqrt machineEps
 
+chunkSize :: Int
+chunkSize = 2
+
 instance Eq ApproxEq where
   ApproxEq x == ApproxEq y = abs (x - y) <= eps
 
@@ -218,19 +221,26 @@ compareGradientsFromDifferentSources name mkInput inputLayerSize hiddenLayers fi
           S.backprop
       , testGroup "Generic"
           [ compareGradients
-              "Vector, PureMatrix"
+              "Vector, PureMatrix, chunkSize = 1"
               (mkVectorInput mkInput)
               (makeGenericVectorNN inputLayerSize hiddenLayers finalLayerSize)
               -- (G.targetFunctionGradNumerical epsilon)
               G.targetFunctionGrad
-              G.backprop
+              (G.backprop 1)
+          , compareGradients
+              ("Vector, PureMatrix, chunkSize = " ++ show chunkSize)
+              (mkVectorInput mkInput)
+              (makeGenericVectorNN inputLayerSize hiddenLayers finalLayerSize)
+              -- (G.targetFunctionGradNumerical epsilon)
+              G.targetFunctionGrad
+              (G.backprop chunkSize)
           , compareGradients
               "List, PureMatrix"
               mkInput
               (makeGenericListNN inputLayerSize hiddenLayers finalLayerSize)
               -- (G.targetFunctionGradNumerical epsilon)
               G.targetFunctionGrad
-              G.backprop
+              (G.backprop chunkSize)
           ]
       ]
   , testGroup "backpropagation, different nn types"
@@ -241,7 +251,7 @@ compareGradientsFromDifferentSources name mkInput inputLayerSize hiddenLayers fi
           S.backprop
           (mkVectorInput mkInput)
           (makeGenericVectorNN inputLayerSize hiddenLayers finalLayerSize)
-          G.backprop
+          (G.backprop chunkSize)
       , compareNNGradients
           "Specific vs Generic MatrixDouble"
           (mkVectorInput mkInput)
@@ -249,7 +259,7 @@ compareGradientsFromDifferentSources name mkInput inputLayerSize hiddenLayers fi
           S.backprop
           (mkVectorDoubleInput mkInput)
           (makeUnboxedDoubleNN inputLayerSize hiddenLayers finalLayerSize)
-          G.backprop
+          (G.backprop chunkSize)
       , compareNNGradients
           "Specific vs Generic UnboxMatrix"
           (mkVectorInput mkInput)
@@ -257,7 +267,7 @@ compareGradientsFromDifferentSources name mkInput inputLayerSize hiddenLayers fi
           S.backprop
           (mkUnboxedVectorInput mkInput)
           (makeUnboxMatrixNN inputLayerSize hiddenLayers finalLayerSize)
-          G.backprop
+          (G.backprop chunkSize)
       , compareNNGradients
           "Specific vs Generic UnboxMatrixWithTranspose"
           (mkVectorInput mkInput)
@@ -265,7 +275,7 @@ compareGradientsFromDifferentSources name mkInput inputLayerSize hiddenLayers fi
           S.backprop
           (mkUnboxedVectorInput mkInput)
           (makeUnboxMatrixWithTransposeNN inputLayerSize hiddenLayers finalLayerSize)
-          G.backprop
+          (G.backprop chunkSize)
       , compareNNGradients
           "Specific vs Generic OpenBlasMatrix"
           (mkVectorInput mkInput)
@@ -273,7 +283,7 @@ compareGradientsFromDifferentSources name mkInput inputLayerSize hiddenLayers fi
           S.backprop
           (mkStorableVectorDoubleInput mkInput)
           (makeOpenBlasMatrixNN inputLayerSize hiddenLayers finalLayerSize)
-          G.backprop
+          (G.backprop chunkSize)
       -- , compareNNGradients
       --     "Specific vs Generic MatrixDouble, specialized backprop"
       --     (mkVectorInput mkInput)

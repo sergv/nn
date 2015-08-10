@@ -106,12 +106,14 @@ makeWeightList inputLayerSize hiddenLayerSizes finalLayerSize mkElem = do
       layer <- mkLayer size prevSize
       return (size, layer : layers)
 
-vecTakeBy :: Int -> Vector a -> [Vector a]
-vecTakeBy n vs =
-  map (\(k, m) -> V.unsafeSlice (k * n) m vs)
-      (map (, n) [0..lastSlice - 1] ++ [(lastSlice, lastSize) | lastSize /= 0])
+splitVec :: Int -> Vector a -> ([Vector a], Vector a)
+splitVec n vs =
+  (map (mkVec . (, n)) [0..lastSlice - 1 - i], mkVec (lastSlice - i, lastSize'))
   where
+    mkVec (k, m) = V.unsafeSlice (k * n) m vs
     (lastSlice, lastSize) = V.length vs `divMod` n
+    (i, lastSize') | lastSize == 0 = (1, n)
+                   | otherwise     = (0, lastSize)
 
 {-# INLINABLE takeBy #-}
 takeBy :: Int -> [a] -> [[a]]

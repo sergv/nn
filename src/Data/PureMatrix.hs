@@ -47,7 +47,7 @@ import Util
 data PureMatrix v a = PureMatrix
   { pmRows    :: {-# UNPACK #-} !Int
   , pmColumns :: {-# UNPACK #-} !Int
-  , pmData    :: !(v (v a))
+  , pmData    :: !(v (v a)) -- ^ Collection of rows
   }
   deriving (Functor, Foldable, Traversable)
 
@@ -99,6 +99,9 @@ instance (ConstrainedFunctor NoConstraints v, Vect NoConstraints v, Transposable
   {-# INLINABLE outerProduct #-}
   {-# INLINABLE vecMulRight  #-}
   {-# INLINABLE transpose    #-}
+  {-# INLINABLE matrixMult   #-}
+  {-# INLINABLE (|+|)        #-}
+  {-# INLINABLE sumColumns   #-}
   fromList [] =
     error "PureMatrix.fromList: cannot create PureMatrix from empty list of rows"
   fromList wss@(ws:_)
@@ -124,6 +127,27 @@ instance (ConstrainedFunctor NoConstraints v, Vect NoConstraints v, Transposable
   vecMulRight (PureMatrix _ _ xss) ys = cfmap (\xs -> VC.dot xs ys) xss
   transpose (PureMatrix rows cols xss) =
     PureMatrix cols rows $ VC.transpose xss
+  matrixMult (PureMatrix xRows xCols xss) (PureMatrix yRows yCols yss)
+    -- This check is needed for optimization of using VC.foldr1 instead of
+    -- VC.monoFoldr. Also it's somewhat meaningless to have matrices with any
+    -- dimension equal to zero.
+    | xCols == 0     =
+      error "PureMatrix.matrixMult: number of columns for right matrix is zero"
+    | xCols /= yRows =
+      error $ "PureMatrix.matrixMult: number of columns for left matrix and " ++
+        "rows for right matrix mismatch: xCols = " ++ show xCols ++
+        ", yRows = " ++ show yRows
+    | otherwise      =
+      PureMatrix xRows yCols matrixData
+    where
+      matrixData = cfmap (\xs -> VC.foldr1 (VC..+.) $ zipWith (\x ys -> cfmap (x *!) ys) xs yss) xss
+  (|+|) left@(PureMatrix xRows xCols xss) right@(PureMatrix yRows yCols yss)
+    | xRows /= yRows || xCols /= yCols =
+      error $ "Cannot add matrices of different size: " ++ showMatrixSize left ++
+        " and " ++ showMatrixSize right
+    | otherwise =
+      PureMatrix xRows xCols $ zipWith (zipWith (+!)) xss yss
+  sumColumns (PureMatrix _ _ xss) = cfmap VC.sum xss
 
 -- instance Matrix (PureMatrix Vector) Vector where
 --   map f (PureMatrix rows cols xss) = PureMatrix rows cols $ fmap (fmap f) xss

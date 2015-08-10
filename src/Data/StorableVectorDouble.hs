@@ -18,6 +18,7 @@
 
 module Data.StorableVectorDouble
   ( StorableVectorDouble(..)
+  , concat
   , concatMap
   , takeBy
   , fromList
@@ -27,7 +28,7 @@ module Data.StorableVectorDouble
   )
 where
 
-import Prelude hiding (concatMap, zipWith, zipWith3)
+import Prelude hiding (concat, concatMap, zipWith, zipWith3)
 import Control.DeepSeq
 import qualified Data.Vector.Storable as S
 import Foreign (Ptr)
@@ -91,6 +92,13 @@ instance Vect IsDoubleConstraint StorableVectorDouble where
   length          = S.length . getStorableVectorDouble
   replicateM n    = fmap StorableVectorDouble . S.replicateM n
   dot (StorableVectorDouble xs) (StorableVectorDouble ys) = S.sum $ S.zipWith (*!) xs ys
+
+{-# INLINABLE concat #-}
+concat
+  :: (ElemConstraints IsDoubleConstraint a, ElemConstraints IsDoubleConstraint b)
+  => [StorableVectorDouble a]
+  -> StorableVectorDouble a
+concat = StorableVectorDouble . S.concat . map getStorableVectorDouble
 
 {-# INLINABLE concatMap #-}
 concatMap

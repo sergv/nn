@@ -114,13 +114,16 @@ instance Matrix UnboxConstraint UnboxMatrixWithTranspose U.Vector where
   {-# INLINABLE outerProduct #-}
   {-# INLINABLE vecMulRight  #-}
   {-# INLINABLE transpose    #-}
+  {-# INLINABLE matrixMult   #-}
+  {-# INLINABLE (|+|)        #-}
+  {-# INLINABLE sumColumns   #-}
   fromList [] =
-    error "UnboxMatrixWithTranspose.fromList: cannot create PureMatrix from empty list of rows"
+    error "UnboxMatrixWithTranspose.fromList: cannot create UnboxMatrixWithTranspose from empty list of rows"
   fromList wss@(ws:_)
     | cols /= 0 && all (== cols) (L.map length wss) =
       mkMatrixWithTranspose rows cols matrixData
     | otherwise =
-      error $ "UnboxMatrixWithTranspose.fromList: cannot create PureMatrix from list " ++ show wss
+      error $ "UnboxMatrixWithTranspose.fromList: cannot create UnboxMatrixWithTranspose from list " ++ show wss
     where
       rows        = length wss
       cols        = length ws
@@ -142,6 +145,32 @@ instance Matrix UnboxConstraint UnboxMatrixWithTranspose U.Vector where
 
   transpose (UnboxMatrixWithTranspose rows cols xs xsT) =
     UnboxMatrixWithTranspose cols rows xsT xs
+  matrixMult (UnboxMatrixWithTranspose xRows xCols xs _) (UnboxMatrixWithTranspose yRows yCols ys _)
+    -- This check is needed for optimization of using VC.foldr1 instead of
+    -- VC.monoFoldr. Also it's somewhat meaningless to have matrices with any
+    -- dimension equal to zero.
+    | xCols == 0     =
+      error "UnboxMatrix.matrixMult: number of columns for right matrix is zero"
+    | xCols /= yRows =
+      error $ "UnboxMatrix.matrixMult: number of columns for left matrix and " ++
+        "rows for right matrix mismatch: xCols = " ++ show xCols ++
+        ", yRows = " ++ show yRows
+    | otherwise      =
+      mkMatrixWithTranspose xRows yCols matrixData
+    where
+      matrixData = U.concat
+                 $ map (\xs -> VC.foldr1 (VC..+.) $ zipWith (\x ys -> cfmap (x *!) ys) xs yss) xss
+      xss = map VC.toList $ uvecTakeBy xRows xCols xs
+      yss = uvecTakeBy yRows yCols ys
+  (|+|) left@(UnboxMatrixWithTranspose xRows xCols xs _) right@(UnboxMatrixWithTranspose yRows yCols ys _)
+    | xRows /= yRows || xCols /= yCols =
+      error $ "Cannot add matrices of different size: " ++ showMatrixSize left ++
+        " and " ++ showMatrixSize right
+    | otherwise =
+      mkMatrixWithTranspose xRows xCols $ zipWith (+!) xs ys
+  sumColumns (UnboxMatrixWithTranspose rows cols xs _) =
+    VC.fromList $ cfmap VC.sum $ uvecTakeBy rows cols xs
+  sum (UnboxMatrixWithTranspose _ _ xs _) = VC.sum xs
 
 {-# INLINABLE mkMatrixWithTranspose #-}
 mkMatrixWithTranspose

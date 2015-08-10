@@ -38,7 +38,7 @@ import Foreign.C.Types
   deriving (Eq, Ord)
  #}
 
-newtype BlasOrder     = BlasOrder ({#type CBLAS_ORDER#}) deriving (Show, Eq, Ord)
+newtype BlasOrder = BlasOrder ({#type CBLAS_ORDER#}) deriving (Show, Eq, Ord)
 
 rowMajorOrder :: BlasOrder
 rowMajorOrder = BlasOrder $ fromIntegral $ fromEnum RowMajor
@@ -48,9 +48,15 @@ newtype BlasTranspose = BlasTranspose ({#type CBLAS_TRANSPOSE#}) deriving (Show,
 noTranspose :: BlasTranspose
 noTranspose = BlasTranspose $ fromIntegral $ fromEnum NoTranspose
 
-newtype BlasInt       = BlasInt ({#type blasint#}) deriving (Show, Eq, Ord)
-newtype Size          = Size ({#type blasint#}) deriving (Show, Eq, Ord)
+transposed :: BlasTranspose
+transposed = BlasTranspose $ fromIntegral $ fromEnum Transpose
 
+-- For increment integter arguments.
+newtype BlasInt = BlasInt ({#type blasint#}) deriving (Show, Eq, Ord)
+-- For size integer arguments.
+newtype Size    = Size ({#type blasint#}) deriving (Show, Eq, Ord)
+
+-- Matrix-vector multiplication
 -- void cblas_dgemv(
 --         OPENBLAS_CONST enum CBLAS_ORDER order,
 --         OPENBLAS_CONST enum CBLAS_TRANSPOSE trans,
@@ -79,6 +85,7 @@ foreign import ccall unsafe "cblas_dgemv" dgemv
   -> BlasInt
   -> IO ()
 
+-- Outer product
 -- void cblas_dger(
 --         OPENBLAS_CONST enum CBLAS_ORDER order,
 --         OPENBLAS_CONST blasint M,
@@ -101,4 +108,52 @@ foreign import ccall unsafe "cblas_dger" dger
   -> BlasInt
   -> Ptr Double
   -> Size
+  -> IO ()
+
+-- Matrix multiplication
+-- void cblas_dgemm(
+--         OPENBLAS_CONST enum CBLAS_ORDER Order,
+--         OPENBLAS_CONST enum CBLAS_TRANSPOSE TransA,
+--         OPENBLAS_CONST enum CBLAS_TRANSPOSE TransB,
+--         OPENBLAS_CONST blasint M,
+--         OPENBLAS_CONST blasint N,
+--         OPENBLAS_CONST blasint K,
+--         OPENBLAS_CONST double alpha,
+--         OPENBLAS_CONST double *A,
+--         OPENBLAS_CONST blasint lda,
+--         OPENBLAS_CONST double *B,
+--         OPENBLAS_CONST blasint ldb,
+--         OPENBLAS_CONST double beta,
+--         double *C,
+--         OPENBLAS_CONST blasint ldc);
+foreign import ccall unsafe "cblas_dgemm" dgemm
+  :: BlasOrder
+  -> BlasTranspose
+  -> BlasTranspose
+  -> Size
+  -> Size
+  -> Size
+  -> Double
+  -> Ptr Double
+  -> Size
+  -> Ptr Double
+  -> Size
+  -> Double
+  -> Ptr Double
+  -> Size
+  -> IO ()
+
+foreign import ccall unsafe "add" addVectors
+  :: Int
+  -> Ptr Double
+  -> Ptr Double
+  -> Ptr Double
+  -> IO ()
+
+foreign import ccall unsafe "addScaled" addVectorsScaled
+  :: Int
+  -> Ptr Double
+  -> Double
+  -> Ptr Double
+  -> Ptr Double
   -> IO ()

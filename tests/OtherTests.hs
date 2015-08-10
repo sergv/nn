@@ -19,7 +19,7 @@ import Data.Vector ()
 import Test.Tasty
 import Test.Tasty.HUnit
 
-import Util (vecTakeBy)
+import Util (splitVec)
 
 tests :: TestTree
 tests = testGroup "Other tests"
@@ -27,19 +27,19 @@ tests = testGroup "Other tests"
   ]
 
 vecTakeByTests :: TestTree
-vecTakeByTests = testGroup "vecTakeBy"
+vecTakeByTests = testGroup "splitVec"
   [ testCase "take by 1" $
-    vecTakeBy 1 xs @?= [[1], [2], [3], [4], [5]]
+    splitVec 1 xs @?= ([[1], [2], [3], [4]], [5])
   , testCase "take by 2" $
-    vecTakeBy 2 xs @?= [[1, 2], [3, 4], [5]]
+    splitVec 2 xs @?= ([[1, 2], [3, 4]], [5])
   , testCase "take by 3" $
-    vecTakeBy 3 xs @?= [[1, 2, 3], [4, 5]]
+    splitVec 3 xs @?= ([[1, 2, 3]], [4, 5])
   , testCase "take by 4" $
-    vecTakeBy 4 xs @?= [[1, 2, 3, 4], [5]]
+    splitVec 4 xs @?= ([[1, 2, 3, 4]], [5])
   , testCase "take by 5" $
-    vecTakeBy 5 xs @?= [[1, 2, 3, 4, 5]]
+    splitVec 5 xs @?= ([], [1, 2, 3, 4, 5])
   , testCase "take by 6" $
-    vecTakeBy 6 xs @?= [[1, 2, 3, 4, 5]]
+    splitVec 6 xs @?= ([], [1, 2, 3, 4, 5])
   ]
   where
     xs = [1, 2, 3, 4, 5]

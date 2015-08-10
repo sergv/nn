@@ -110,6 +110,9 @@ instance Matrix IsDoubleConstraint OpenBlasMatrix StorableVectorDouble where
   {-# INLINABLE outerProduct #-}
   {-# INLINABLE vecMulRight  #-}
   {-# INLINABLE transpose    #-}
+  {-# INLINABLE matrixMult   #-}
+  {-# INLINABLE (|+|)        #-}
+  {-# INLINABLE sumColumns   #-}
   fromList [] =
     error "OpenBlasMatrix.fromList: cannot create PureMatrix from empty list of rows"
   fromList wss@(ws:_)
@@ -185,6 +188,105 @@ instance Matrix IsDoubleConstraint OpenBlasMatrix StorableVectorDouble where
       incy  = incx
   transpose (OpenBlasMatrix rows cols xs xsT) =
     OpenBlasMatrix cols rows xsT xs
+  matrixMult (OpenBlasMatrix xRows xCols xs _) (OpenBlasMatrix _ yCols ys _) =
+    -- -- This check is needed for optimization of using VC.foldr1 instead of
+    -- -- VC.monoFoldr. Also it's somewhat meaningless to have matrices with any
+    -- -- dimension equal to zero.
+    -- | xCols == 0     =
+    --   error "PureMatrix.matrixMult: number of columns for right matrix is zero"
+    -- | xCols /= yRows =
+    --   error $ "PureMatrix.matrixMult: number of columns for left matrix and " ++
+    --     "rows for right matrix mismatch: xCols = " ++ show xCols ++
+    --     ", yRows = " ++ show yRows
+    -- | otherwise      =
+    unsafePerformIO $ do
+      zs <- SM.unsafeNew (xRows * yCols)
+      S.unsafeWith xs $ \leftMatrixPtr ->
+        S.unsafeWith ys $ \rightMatrixPtr ->
+          SM.unsafeWith zs $ \resultPtr ->
+            dgemm
+              rowMajorOrder
+              noTranspose    -- TransA
+              noTranspose    -- TransB
+              xRows'         -- M
+              yCols'         -- N
+              xCols'         -- K
+              1              -- alpha
+              leftMatrixPtr  -- A
+              xCols'         -- lda
+              rightMatrixPtr -- B
+              yCols'         -- ldb
+              0              -- beta
+              resultPtr      -- C
+              yCols'         -- ldc
+      mkMatrixWithTranspose xRows yCols <$> S.freeze zs
+    where
+      xRows' = Size $ fromIntegral xRows
+      yCols' = Size $ fromIntegral yCols
+      xCols' = Size $ fromIntegral xCols
+  (|+|) left@(OpenBlasMatrix xRows xCols xs xsT) right@(OpenBlasMatrix yRows yCols ys ysT)
+    | xRows /= yRows || xCols /= yCols =
+      error $ "Cannot add matrices of different size: " ++ showMatrixSize left ++
+        " and " ++ showMatrixSize right
+    | otherwise =
+      OpenBlasMatrix xRows xCols (zipWith (+!) xs ys) (zipWith (+!) xsT ysT)
+  sumColumns (OpenBlasMatrix rows cols xs _) =
+    VC.fromList $ cfmap VC.sum $ svecTakeBy rows cols xs
+  sum (OpenBlasMatrix _ _ xs _) = VC.sum xs
+  matrixMultByTransposedLeft (OpenBlasMatrix xRows xCols xs _) (OpenBlasMatrix _ yCols ys _) =
+    unsafePerformIO $ do
+      zs <- SM.unsafeNew (xCols * yCols)
+      S.unsafeWith xs $ \leftMatrixPtr ->
+        S.unsafeWith ys $ \rightMatrixPtr ->
+          SM.unsafeWith zs $ \resultPtr ->
+            dgemm
+              rowMajorOrder
+              transposed     -- TransA
+              noTranspose    -- TransB
+              xCols'         -- M
+              yCols'         -- N
+              xRows'         -- K
+              1              -- alpha
+              leftMatrixPtr  -- A
+              xCols'         -- lda
+              rightMatrixPtr -- B
+              yCols'         -- ldb
+              0              -- beta
+              resultPtr      -- C
+              yCols'         -- ldc
+      mkMatrixWithTranspose xCols yCols <$> S.freeze zs
+    where
+      xRows' = Size $ fromIntegral xRows
+      yCols' = Size $ fromIntegral yCols
+      xCols' = Size $ fromIntegral xCols
+  matrixMultByTransposedRight (OpenBlasMatrix xRows xCols xs _) (OpenBlasMatrix yRows yCols ys _) =
+    unsafePerformIO $ do
+      zs <- SM.unsafeNew (xRows * yRows)
+      S.unsafeWith xs $ \leftMatrixPtr ->
+        S.unsafeWith ys $ \rightMatrixPtr ->
+          SM.unsafeWith zs $ \resultPtr ->
+            dgemm
+              rowMajorOrder
+              noTranspose    -- TransA
+              transposed     -- TransB
+              xRows'         -- M
+              yRows'         -- N
+              xCols'         -- K
+              1              -- alpha
+              leftMatrixPtr  -- A
+              xCols'         -- lda
+              rightMatrixPtr -- B
+              yCols'         -- ldb
+              0              -- beta
+              resultPtr      -- C
+              yRows'         -- ldc
+      mkMatrixWithTranspose xRows yRows <$> S.freeze zs
+    where
+      xRows' = Size $ fromIntegral xRows
+      xCols' = Size $ fromIntegral xCols
+      yRows' = Size $ fromIntegral yRows
+      yCols' = Size $ fromIntegral yCols
+
 
 {-# INLINABLE mkMatrixWithTranspose #-}
 mkMatrixWithTranspose
@@ -215,12 +317,12 @@ transposeMatrixData rows cols xs =
     , r <- [0..rows - 1]
     ]
 
--- {-# INLINABLE vecTakeBy #-}
--- vecTakeBy
---   :: (ElemConstraints IsDoubleConstraint a)
---   => Int
---   -> Int
---   -> S.Vector a
---   -> [S.Vector a]
--- vecTakeBy rows cols vs =
---   map (\r -> S.unsafeSlice (r *! cols) cols vs) [0..rows -! 1]
+{-# INLINABLE svecTakeBy #-}
+svecTakeBy
+  :: (ElemConstraints IsDoubleConstraint a)
+  => Int
+  -> Int
+  -> S.Vector a
+  -> [S.Vector a]
+svecTakeBy rows cols vs =
+  map (\r -> S.unsafeSlice (r *! cols) cols vs) [0..rows -! 1]

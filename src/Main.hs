@@ -19,7 +19,6 @@
 
 module Main where
 
-import Control.Applicative
 import Control.Arrow
 import Control.Monad
 import Control.Monad.State

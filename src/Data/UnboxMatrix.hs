@@ -95,8 +95,11 @@ instance Matrix UnboxConstraint UnboxMatrix U.Vector where
   {-# INLINABLE outerProduct #-}
   {-# INLINABLE vecMulRight  #-}
   {-# INLINABLE transpose    #-}
+  {-# INLINABLE matrixMult   #-}
+  {-# INLINABLE (|+|)        #-}
+  {-# INLINABLE sumColumns   #-}
   fromList [] =
-    error "UnboxMatrix.fromList: cannot create PureMatrix from empty list of rows"
+    error "UnboxMatrix.fromList: cannot create UnboxMatrix from empty list of rows"
   fromList wss@(ws:_)
     | columns > 0 && all (== columns) (L.map length wss) =
       UnboxMatrix
@@ -105,7 +108,7 @@ instance Matrix UnboxConstraint UnboxMatrix U.Vector where
         , umData    = VC.fromList $ L.concat wss
         }
     | otherwise =
-      error $ "UnboxMatrix.fromList: cannot create PureMatrix from list " ++ show wss
+      error $ "UnboxMatrix.fromList: cannot create UnboxMatrix from list " ++ show wss
     where
       rows    = length wss
       columns = length ws
@@ -130,6 +133,32 @@ instance Matrix UnboxConstraint UnboxMatrix U.Vector where
               | c <- [0..cols - 1]
               , r <- [0..rows - 1]
               ]
+  matrixMult (UnboxMatrix xRows xCols xs) (UnboxMatrix yRows yCols ys)
+    -- This check is needed for optimization of using VC.foldr1 instead of
+    -- VC.monoFoldr. Also it's somewhat meaningless to have matrices with any
+    -- dimension equal to zero.
+    | xCols == 0     =
+      error "UnboxMatrix.matrixMult: number of columns for right matrix is zero"
+    | xCols /= yRows =
+      error $ "UnboxMatrix.matrixMult: number of columns for left matrix and " ++
+        "rows for right matrix mismatch: xCols = " ++ show xCols ++
+        ", yRows = " ++ show yRows
+    | otherwise      =
+      UnboxMatrix xRows yCols matrixData
+    where
+      matrixData = U.concat
+                 $ map (\xs -> VC.foldr1 (VC..+.) $ zipWith (\x ys -> cfmap (x *!) ys) xs yss) xss
+      xss = map VC.toList $ uvecTakeBy xRows xCols xs
+      yss = uvecTakeBy yRows yCols ys
+  (|+|) left@(UnboxMatrix xRows xCols xs) right@(UnboxMatrix yRows yCols ys)
+    | xRows /= yRows || xCols /= yCols =
+      error $ "Cannot add matrices of different size: " ++ showMatrixSize left ++
+        " and " ++ showMatrixSize right
+    | otherwise =
+      UnboxMatrix xRows xCols $ zipWith (+!) xs ys
+  sumColumns (UnboxMatrix rows cols xs) =
+    VC.fromList $ cfmap VC.sum $ uvecTakeBy rows cols xs
+  sum (UnboxMatrix _ _ xs) = VC.sum xs
 
 {-# INLINABLE uvecTakeBy #-}
 uvecTakeBy

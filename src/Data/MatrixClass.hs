@@ -16,13 +16,16 @@
 
 module Data.MatrixClass where
 
-import Prelude hiding (map)
+import Prelude hiding (map, sum)
 
 import Data.VectClass (Vect)
 import qualified Data.VectClass as VC
 import Data.ConstrainedFunctor
 
 class (Vect k v) => Matrix k w v | w -> v k where
+  {-# INLINABLE sum #-}
+  {-# INLINABLE matrixMultByTransposedLeft #-}
+  {-# INLINABLE matrixMultByTransposedRight #-}
   fromList   :: (ElemConstraints k a, Show a) => [[a]] -> w a
   toList     :: (ElemConstraints k a) => w a -> [[a]]
   rows       :: w a -> Int
@@ -37,12 +40,27 @@ class (Vect k v) => Matrix k w v | w -> v k where
 
   vecMulRight :: (Num a, ElemConstraints k a) => w a -> v a -> v a
   transpose :: (ElemConstraints k a) => w a -> w a
-  -- matrixMult  :: w a -> w a -> w a
+  matrixMult :: (ElemConstraints k a, Num a) => w a -> w a -> w a
+  (|+|) :: (ElemConstraints k a, Num a) => w a -> w a -> w a
+  sumColumns :: (ElemConstraints k a, Num a) => w a -> v a
+  sum :: (ElemConstraints k a, Num a) => w a -> a
+  sum = VC.sum . sumColumns
+  -- | Multiply transposed first matrix by second.
+  matrixMultByTransposedLeft :: (ElemConstraints k a, Num a) => w a -> w a -> w a
+  matrixMultByTransposedLeft x y = matrixMult (transpose x) y
+  -- | Multiply first matrix by transposed second.
+  matrixMultByTransposedRight :: (ElemConstraints k a, Num a) => w a -> w a -> w a
+  matrixMultByTransposedRight x y = matrixMult x (transpose y)
+
 
 normL2Square
   :: (Matrix k w v, Num a, ConstrainedFunctor k w, ElemConstraints k a)
   => w a -> a
-normL2Square matr = VC.sum $ vecMulRight matrSquares v
-  where
-    matrSquares = cfmap (\x -> x * x) matr
-    v = VC.replicate (columns matr) 1
+normL2Square matr = sum $ cfmap (\x -> x * x) matr
+-- normL2Square matr = VC.sum $ vecMulRight matrSquares v
+--   where
+--     matrSquares = cfmap (\x -> x * x) matr
+--     v = VC.replicate (columns matr) 1
+
+showMatrixSize :: (Matrix k w v) => w a -> String
+showMatrixSize x = show (rows x) ++ "x" ++ show (columns x)

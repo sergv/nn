@@ -114,6 +114,9 @@ instance Matrix StorableConstraint StorableMatrixWithTranspose S.Vector where
   {-# INLINABLE outerProduct #-}
   {-# INLINABLE vecMulRight  #-}
   {-# INLINABLE transpose    #-}
+  {-# INLINABLE matrixMult   #-}
+  {-# INLINABLE (|+|)        #-}
+  {-# INLINABLE sumColumns   #-}
   fromList [] =
     error "StorableMatrixWithTranspose.fromList: cannot create PureMatrix from empty list of rows"
   fromList wss@(ws:_)
@@ -140,6 +143,32 @@ instance Matrix StorableConstraint StorableMatrixWithTranspose S.Vector where
     VC.fromList $ L.map (\zs -> VC.dot zs ys) $ svecTakeBy rows cols xs
   transpose (StorableMatrixWithTranspose rows cols xs xsT) =
     StorableMatrixWithTranspose cols rows xsT xs
+  matrixMult (StorableMatrixWithTranspose xRows xCols xs _) (StorableMatrixWithTranspose yRows yCols ys _)
+    -- This check is needed for optimization of using VC.foldr1 instead of
+    -- VC.monoFoldr. Also it's somewhat meaningless to have matrices with any
+    -- dimension equal to zero.
+    | xCols == 0     =
+      error "StorableMatrix.matrixMult: number of columns for right matrix is zero"
+    | xCols /= yRows =
+      error $ "StorableMatrix.matrixMult: number of columns for left matrix and " ++
+        "rows for right matrix mismatch: xCols = " ++ show xCols ++
+        ", yRows = " ++ show yRows
+    | otherwise      =
+      mkMatrixWithTranspose xRows yCols matrixData
+    where
+      matrixData = S.concat
+                 $ map (\xs -> VC.foldr1 (VC..+.) $ zipWith (\x ys -> cfmap (x *!) ys) xs yss) xss
+      xss = map VC.toList $ svecTakeBy xRows xCols xs
+      yss = svecTakeBy yRows yCols ys
+  (|+|) left@(StorableMatrixWithTranspose xRows xCols xs _) right@(StorableMatrixWithTranspose yRows yCols ys _)
+    | xRows /= yRows || xCols /= yCols =
+      error $ "Cannot add matrices of different size: " ++ showMatrixSize left ++
+        " and " ++ showMatrixSize right
+    | otherwise =
+      mkMatrixWithTranspose xRows xCols $ zipWith (+!) xs ys
+  sumColumns (StorableMatrixWithTranspose rows cols xs _) =
+    VC.fromList $ cfmap VC.sum $ svecTakeBy rows cols xs
+  sum (StorableMatrixWithTranspose _ _ xs _) = VC.sum xs
 
 {-# INLINABLE mkMatrixWithTranspose #-}
 mkMatrixWithTranspose
