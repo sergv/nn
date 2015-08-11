@@ -163,16 +163,25 @@ nnZipWith4 f (NN xs finX) (NN ys finY) (NN zs finZ) (NN ws finW) =
   where
     zipLayers (xb, x) (yb, y) (zb, z) (wb, w) = (zipWith4 f xb yb zb wb, zipWith4 f x y z w)
 
--- nnZ = nnX + NNy
+-- nnZ = nnX + nnY
 add :: (Matrix k w v, Zippable k w, Vect k v, Num a, ElemConstraints k a)
     => NN w v n o a -> NN w v n o a -> NN w v n o a
-add nn addend = nnZipWith (\x y -> x +! y) nn addend
+add (NN layers final) (NN layers' final') =
+  NN (V.zipWith f layers layers')
+     (f final final')
+  where
+    f (xs, xss) (ys, yss) = (xs .+. ys, xss |+| yss)
 
--- nnZ = b * nnX + NNy
+-- nnZ = nnX + b * nnY
 addScaled
   :: (Matrix k w v, Zippable k w, Vect k v, Num a, ElemConstraints k a)
   => NN w v n o a -> a -> NN w v n o a -> NN w v n o a
-addScaled nn b addend = nnZipWith (\x y -> x +! b *! y) nn addend
+-- addScaled nn b addend = nnZipWith (\x y -> x +! b *! y) nn addend
+addScaled (NN layers final) b (NN layers' final') =
+  NN (V.zipWith f layers layers')
+     (f final final')
+  where
+    f (xs, xss) (ys, yss) = (VC.addScaled xs b ys, MC.addScaled xss b yss)
 
 nnSize
   :: forall k w v n o a. (Matrix k w v, ConstrainedFunctor k w, Vect k v, Floating a, ElemConstraints k a)

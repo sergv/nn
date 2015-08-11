@@ -70,6 +70,8 @@ matrixTests name _ _ = testGroup name
     MC.transpose testMatrix2 @?= testMatrix
   , testCase "transpose #3" $
     MC.transpose testMatrix3 @?= imat [[1, 4, 7], [2, 5, 8], [3, 6, 9]]
+  , testCase "matrix scaled addition" $
+    MC.addScaled testMatrix 2 testMatrix @?= imat [[3, 6], [9, 12], [15, 18]]
   , testCase "matrix addition" $
     testMatrix MC.|+| testMatrix @?= imat [[2, 4], [6, 8], [10, 12]]
 

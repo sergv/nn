@@ -11,6 +11,7 @@
 --
 ----------------------------------------------------------------------------
 
+{-# LANGUAGE DefaultSignatures      #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MultiParamTypeClasses  #-}
 
@@ -22,9 +23,12 @@ import Data.VectClass (Vect)
 import qualified Data.VectClass as VC
 import Data.ConstrainedFunctor
 
+import Util
+
 class (Vect k v) => Matrix k w v | w -> v k where
-  {-# INLINABLE sum #-}
-  {-# INLINABLE matrixMultByTransposedLeft #-}
+  {-# INLINABLE sum                         #-}
+  {-# INLINABLE addScaled                   #-}
+  {-# INLINABLE matrixMultByTransposedLeft  #-}
   {-# INLINABLE matrixMultByTransposedRight #-}
   fromList   :: (ElemConstraints k a, Show a) => [[a]] -> w a
   toList     :: (ElemConstraints k a) => w a -> [[a]]
@@ -42,6 +46,10 @@ class (Vect k v) => Matrix k w v | w -> v k where
   transpose :: (ElemConstraints k a) => w a -> w a
   matrixMult :: (ElemConstraints k a, Num a) => w a -> w a -> w a
   (|+|) :: (ElemConstraints k a, Num a) => w a -> w a -> w a
+  addScaled  :: (ElemConstraints k a, Num a) => w a -> a -> w a -> w a
+  default addScaled :: (ElemConstraints k a, Num a, ConstrainedFunctor k w)
+                    => w a -> a -> w a -> w a
+  addScaled xs c ys = xs |+| cfmap (*! c) ys
   sumColumns :: (ElemConstraints k a, Num a) => w a -> v a
   sum :: (ElemConstraints k a, Num a) => w a -> a
   sum = VC.sum . sumColumns
