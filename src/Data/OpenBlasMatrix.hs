@@ -36,6 +36,7 @@ import Text.PrettyPrint.Leijen.Text (Pretty(..), Doc)
 import qualified Text.PrettyPrint.Leijen.Text as PP
 import System.IO.Unsafe
 
+import Data.Aligned.Double
 import Data.ConstrainedConvert (Convert)
 import qualified Data.ConstrainedConvert as Conv
 import Data.ConstrainedFunctor
@@ -60,10 +61,10 @@ data OpenBlasMatrix a = OpenBlasMatrix
   }
   deriving (Show, Eq, Ord)
 
-unboxedMatrixWithTransposeToList :: (ElemConstraints IsDoubleConstraint a) => OpenBlasMatrix a -> [[a]]
+unboxedMatrixWithTransposeToList :: (ElemConstraints IsAlignedDoubleConstraint a) => OpenBlasMatrix a -> [[a]]
 unboxedMatrixWithTransposeToList (OpenBlasMatrix _ cols xs _) = takeBy cols $ VC.toList xs
 
-instance (ElemConstraints IsDoubleConstraint a, Pretty a) => Pretty (OpenBlasMatrix a) where
+instance (ElemConstraints IsAlignedDoubleConstraint a, Pretty a) => Pretty (OpenBlasMatrix a) where
   pretty um@(OpenBlasMatrix rows cols _ _) =
     "Matrix " <> PP.int rows <> "x" <> PP.int cols <> " (double)" PP.<$>
     PP.vsep (L.map showRow $ unboxedMatrixWithTransposeToList um)
@@ -71,15 +72,15 @@ instance (ElemConstraints IsDoubleConstraint a, Pretty a) => Pretty (OpenBlasMat
       showRow :: [a] -> Doc
       showRow = PP.hcat . PP.punctuate PP.comma . L.map pretty
 
-instance (ElemConstraints IsDoubleConstraint a) => NFData (OpenBlasMatrix a) where
+instance (ElemConstraints IsAlignedDoubleConstraint a) => NFData (OpenBlasMatrix a) where
   rnf (OpenBlasMatrix rows cols xs ys) = rnf rows `seq` rnf cols `seq` rnf xs `seq` rnf ys
 
-instance ConstrainedFunctor IsDoubleConstraint OpenBlasMatrix where
+instance ConstrainedFunctor IsAlignedDoubleConstraint OpenBlasMatrix where
   {-# INLINABLE cfmap #-}
   cfmap f (OpenBlasMatrix rows cols xs _) =
     mkMatrixWithTranspose rows cols $ cfmap f xs
 
-instance Zippable IsDoubleConstraint OpenBlasMatrix where
+instance Zippable IsAlignedDoubleConstraint OpenBlasMatrix where
   {-# INLINABLE zipWith  #-}
   {-# INLINABLE zipWith3 #-}
   {-# INLINABLE zipWith4 #-}
@@ -96,7 +97,7 @@ instance Zippable IsDoubleConstraint OpenBlasMatrix where
       mkMatrixWithTranspose xRows xCols $ zipWith4 f xs ys zs ws
     | otherwise = error "OpenBlasMatrix.zipWith4: cannot zip matrices of different shapes"
 
-instance Convert IsDoubleConstraint StorableConstraint OpenBlasMatrix StorableMatrixWithTranspose where
+instance Convert IsAlignedDoubleConstraint StorableConstraint OpenBlasMatrix StorableMatrixWithTranspose where
   {-# INLINABLE convertTo   #-}
   {-# INLINABLE convertFrom #-}
   convertTo (OpenBlasMatrix wRows wCols ws ws') =
@@ -104,7 +105,7 @@ instance Convert IsDoubleConstraint StorableConstraint OpenBlasMatrix StorableMa
   convertFrom (StorableMatrixWithTranspose wRows wCols ws ws') =
     OpenBlasMatrix wRows wCols ws ws'
 
-instance Matrix IsDoubleConstraint OpenBlasMatrix StorableVectorDouble where
+instance Matrix IsAlignedDoubleConstraint OpenBlasMatrix StorableVectorDouble where
   {-# INLINABLE rows         #-}
   {-# INLINABLE columns      #-}
   {-# INLINABLE outerProduct #-}
@@ -290,7 +291,7 @@ instance Matrix IsDoubleConstraint OpenBlasMatrix StorableVectorDouble where
 
 {-# INLINABLE mkMatrixWithTranspose #-}
 mkMatrixWithTranspose
-  :: (ElemConstraints IsDoubleConstraint a)
+  :: (ElemConstraints IsAlignedDoubleConstraint a)
   => Int
   -> Int
   -> S.Vector a
@@ -305,7 +306,7 @@ mkMatrixWithTranspose rows cols matrixData =
 
 {-# INLINABLE transposeMatrixData #-}
 transposeMatrixData
-  :: (ElemConstraints IsDoubleConstraint a)
+  :: (ElemConstraints IsAlignedDoubleConstraint a)
   => Int
   -> Int
   -> S.Vector a
@@ -319,7 +320,7 @@ transposeMatrixData rows cols xs =
 
 {-# INLINABLE svecTakeBy #-}
 svecTakeBy
-  :: (ElemConstraints IsDoubleConstraint a)
+  :: (ElemConstraints IsAlignedDoubleConstraint a)
   => Int
   -> Int
   -> S.Vector a

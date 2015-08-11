@@ -51,7 +51,7 @@ import Data.UnboxMatrixWithTranspose (UnboxMatrixWithTranspose)
 import Data.ConstrainedConvert (Convert)
 import qualified Data.ConstrainedConvert as Conv
 import Data.ConstrainedFunctor
-import Data.MatrixClass (Matrix)
+import Data.MatrixClass (Matrix, (|+|))
 import qualified Data.MatrixClass as MC
 import Data.VectClass (Vect, (.+.))
 import qualified Data.VectClass as VC
@@ -181,7 +181,7 @@ nnSize (NN layers fin) =
   sqrt $ V.sum (V.map layerSize layers) + layerSize fin
   where
     layerSize :: (v a, w a) -> a
-    layerSize (bias, weightMatrix) = VC.normL2Square bias + MC.normL2Square weightMatrix
+    layerSize (bias, weightMatrix) = VC.normL2Square bias +! MC.normL2Square weightMatrix
 
 differenceSize
   :: (Matrix k w v, ConstrainedFunctor k w, Zippable k w)
@@ -464,13 +464,13 @@ backprop chunkSize dataset
         f (prevLayer, _prevLayerDeriv, _prevWeights) (bias, weights) =
           (cfmap (nonlinearity nn) ss, cfmap (nonlinearityDeriv nn) ss, weights)
           where
-            ss = bias MC.|+| MC.matrixMult weights prevLayer
+            ss = bias |+| MC.matrixMult weights prevLayer
 
         g :: (w a, b, c) -> (w a, w a) -> (w a, w a)
         g (prevLayer, _prevLayerDeriv, _) (bias, layer) =
           (cfmap (output nn) ss, cfmap (outputDeriv nn) ss)
           where
-            ss = bias MC.|+| MC.matrixMult layer prevLayer
+            ss = bias |+| MC.matrixMult layer prevLayer
 
 targetFunctionGradNumerical
   :: forall w v n o a. (Matrix NoConstraints w v, Functor w, Traversable w, ElemConstraints NoConstraints a)

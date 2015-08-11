@@ -93,7 +93,7 @@ instance Convert NoConstraints NoConstraints (PureMatrix v) (PureMatrix v) where
   convertTo   = id
   convertFrom = id
 
-instance (ConstrainedFunctor NoConstraints v, Vect NoConstraints v, TransposableVector NoConstraints v) => Matrix NoConstraints (PureMatrix v) v where
+instance (Functor v, ConstrainedFunctor NoConstraints v, Vect NoConstraints v, TransposableVector NoConstraints v) => Matrix NoConstraints (PureMatrix v) v where
   {-# INLINABLE rows         #-}
   {-# INLINABLE columns      #-}
   {-# INLINABLE outerProduct #-}

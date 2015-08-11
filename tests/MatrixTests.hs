@@ -20,6 +20,7 @@ import Data.Proxy
 import Test.Tasty
 import Test.Tasty.HUnit
 
+import Data.Aligned.Double
 import Data.MatrixDouble (MatrixDouble)
 import Data.OpenBlasMatrix (OpenBlasMatrix)
 import Data.PureMatrix (PureMatrix)
@@ -33,20 +34,21 @@ import qualified Data.VectClass as VC
 
 tests :: TestTree
 tests = testGroup "Matrix tests"
-  [ matrixTests "PureMatrix" pureMatrixProxy
-  , matrixTests "MatrixDouble" matrixDoubleProxy
-  , matrixTests "UnboxMatrix" unboxMatrixProxy
-  , matrixTests "UnboxMatrixWithTranspose" unboxMatrixWithTransposeProxy
-  , matrixTests "OpenBlasMatrix" openBlasMatrixProxy
+  [ matrixTests "PureMatrix" pureMatrixProxy doubleProxy
+  , matrixTests "MatrixDouble" matrixDoubleProxy doubleProxy
+  , matrixTests "UnboxMatrix" unboxMatrixProxy doubleProxy
+  , matrixTests "UnboxMatrixWithTranspose" unboxMatrixWithTransposeProxy doubleProxy
+  , matrixTests "OpenBlasMatrix" openBlasMatrixProxy alignedDoubleProxy
   ]
 
 matrixTests
-  :: forall k w v. (Vect k v, Matrix k w v)
-  => (ElemConstraints k Double, Show (w Double), Eq (w Double), Show (v Double), Eq (v Double))
+  :: forall k w v a. (Vect k v, Matrix k w v)
+  => (ElemConstraints k a, Show (w a), Eq (w a), Show (v a), Eq (v a), Show a, Num a)
   => String
   -> Proxy w
+  -> Proxy a
   -> TestTree
-matrixTests name _ = testGroup name
+matrixTests name _ _ = testGroup name
   [ testCase "rows" $
     MC.rows testMatrix @?= 3
   , testCase "columns" $
@@ -55,13 +57,13 @@ matrixTests name _ = testGroup name
     --- | 2 | * [ 10, 20 ] = | 2 * 10, 2 * 20 | = | 20, 40 |
     --- | 3 |                | 3 * 10, 3 * 20 |   | 30, 60 |
   , testCase "outer product" $
-    MC.outerProduct (ivec [1, 2, 3]) (ivec [10, 20]) @?= (imat [[10, 20], [20, 40], [30, 60]] :: w Double)
+    MC.outerProduct (ivec [1, 2, 3]) (ivec [10, 20]) @?= (imat [[10, 20], [20, 40], [30, 60]] :: w a)
   , testCase "vecMulRight #1" $
     MC.vecMulRight testMatrix (ivec [1, 2]) @?= ivec [5, 11, 17]
   , testCase "vecMulRight #2" $
     MC.vecMulRight testMatrix2 (ivec [1, 2, 3]) @?= ivec [22, 28]
   , testCase "vecMulRight #3" $
-    MC.vecMulRight testMatrix3 (ivec [1, 2, 3]) @?= (ivec [14, 32, 50] :: v Double)
+    MC.vecMulRight testMatrix3 (ivec [1, 2, 3]) @?= (ivec [14, 32, 50] :: v a)
   , testCase "transpose #1" $
     MC.transpose testMatrix @?= testMatrix2
   , testCase "transpose #2" $
@@ -86,9 +88,9 @@ matrixTests name _ = testGroup name
   -- | 5 |               | 5 5 5 |
   , matrixMultiplicationTests
       "matrix multiplication #2"
-      (imat [[1], [2], [3], [4], [5]] :: w Double)
+      (imat [[1], [2], [3], [4], [5]] :: w a)
       (imat [[1, 1, 1]])
-      (imat [ [ fromIntegral r :: Double | _ <- [1..3 :: Int]]
+      (imat [ [ fromIntegral r :: a | _ <- [1..3 :: Int]]
             | r <- [1..5 :: Int]
             ])
   -- | 1 |                      | 1 1 1 1 1 1 1 |
@@ -98,22 +100,22 @@ matrixTests name _ = testGroup name
   -- | 5 |                      | 5 5 5 5 5 5 5 |
   , matrixMultiplicationTests
       "matrix multiplication #3"
-      (imat [[1], [2], [3], [4], [5]] :: w Double)
+      (imat [[1], [2], [3], [4], [5]] :: w a)
       (imat [[1, 1, 1, 1, 1, 1, 1]])
-      (imat [ [ fromIntegral r :: Double | _ <- [1..7 :: Int]]
+      (imat [ [ fromIntegral r :: a | _ <- [1..7 :: Int]]
             | r <- [1..5 :: Int]
             ])
   , testCase "sum columns" $
     MC.sumColumns testMatrix @?= ivec [3, 7, 11]
   ]
   where
-    testMatrix :: w Double
+    testMatrix :: w a
     testMatrix = imat [[1, 2], [3, 4], [5, 6]]
-    testMatrix2 :: w Double
+    testMatrix2 :: w a
     testMatrix2 = imat [[1, 3, 5], [2, 4, 6]]
-    testMatrix2' :: w Double
+    testMatrix2' :: w a
     testMatrix2' = imat [[1, 4, 5], [2, 3, 6]]
-    testMatrix3 :: w Double
+    testMatrix3 :: w a
     testMatrix3 = imat [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
 
 matrixMultiplicationTests
@@ -132,6 +134,12 @@ matrixMultiplicationTests name x y z = testGroup name
     MC.matrixMultByTransposedRight x (MC.transpose y) @?= z
   ]
 
+doubleProxy :: Proxy Double
+doubleProxy = Proxy
+
+alignedDoubleProxy :: Proxy AlignedDouble
+alignedDoubleProxy = Proxy
+
 pureMatrixProxy :: Proxy (PureMatrix [])
 pureMatrixProxy = Proxy
 
@@ -147,8 +155,8 @@ unboxMatrixWithTransposeProxy = Proxy
 openBlasMatrixProxy :: Proxy OpenBlasMatrix
 openBlasMatrixProxy = Proxy
 
-ivec :: (ElemConstraints k Double, Vect k v) => [Double] -> v Double
+ivec :: (ElemConstraints k a, Vect k v) => [a] -> v a
 ivec = VC.fromList
 
-imat :: (ElemConstraints k Double, Matrix k w v) => [[Double]] -> w Double
+imat :: (ElemConstraints k a, Matrix k w v, Show a) => [[a]] -> w a
 imat = MC.fromList

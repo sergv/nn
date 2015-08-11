@@ -11,9 +11,10 @@
 --
 ----------------------------------------------------------------------------
 
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE FlexibleContexts          #-}
+{-# LANGUAGE OverloadedStrings         #-}
+{-# LANGUAGE ScopedTypeVariables       #-}
 
 module Main where
 
@@ -26,6 +27,7 @@ import qualified Data.Vector.Unboxed as U
 import Text.PrettyPrint.Leijen.Text (Pretty(..))
 import qualified Text.PrettyPrint.Leijen.Text as PP
 
+import Data.Aligned.Double
 import Data.MatrixDouble (MatrixDouble)
 import Data.OpenBlasMatrix (OpenBlasMatrix)
 import Data.PureMatrix (PureMatrix)
@@ -56,7 +58,7 @@ import qualified OtherTests
 
 default (Int)
 
-newtype ApproxEq = ApproxEq Double
+data ApproxEq = forall a. (Show a, Pretty a, ToDouble a) => ApproxEq a
 
 machineEps :: Double
 machineEps = 1.11022302462516e-16
@@ -68,7 +70,7 @@ chunkSize :: Int
 chunkSize = 2
 
 instance Eq ApproxEq where
-  ApproxEq x == ApproxEq y = abs (x - y) <= eps
+  ApproxEq x == ApproxEq y = abs (toDouble x - toDouble y) <= eps
 
 instance Show ApproxEq where
   show (ApproxEq x) = show x
@@ -316,9 +318,9 @@ makeUnboxMatrixNN inputLayerSize hiddenLayerSizes finalLayerSize =
 makeUnboxMatrixWithTransposeNN :: Int -> [Int] -> Int -> State PureMT (G.NN UnboxMatrixWithTranspose U.Vector HyperbolicTangent Nonlinear Double)
 makeUnboxMatrixWithTransposeNN inputLayerSize hiddenLayerSizes finalLayerSize =
   G.makeNN inputLayerSize hiddenLayerSizes finalLayerSize (sample stdNormal)
-makeOpenBlasMatrixNN :: Int -> [Int] -> Int -> State PureMT (G.NN OpenBlasMatrix StorableVectorDouble HyperbolicTangent Nonlinear Double)
+makeOpenBlasMatrixNN :: Int -> [Int] -> Int -> State PureMT (G.NN OpenBlasMatrix StorableVectorDouble HyperbolicTangent Nonlinear AlignedDouble)
 makeOpenBlasMatrixNN inputLayerSize hiddenLayerSizes finalLayerSize =
-  G.makeNN inputLayerSize hiddenLayerSizes finalLayerSize (sample stdNormal)
+  G.makeNN inputLayerSize hiddenLayerSizes finalLayerSize (AlignedDouble <$> sample stdNormal)
 
 mkVectorInput
   :: (Double -> ([Double], [Double]))
@@ -337,8 +339,11 @@ mkUnboxedVectorInput mkInput = (U.fromList *** U.fromList) . mkInput
 
 mkStorableVectorDoubleInput
   :: (Double -> ([Double], [Double]))
-  -> Double -> (StorableVectorDouble Double, StorableVectorDouble Double)
-mkStorableVectorDoubleInput mkInput = (SVD.fromList *** SVD.fromList) . mkInput
+  -> Double -> (StorableVectorDouble AlignedDouble, StorableVectorDouble AlignedDouble)
+mkStorableVectorDoubleInput mkInput =
+  (SVD.fromList *** SVD.fromList) .
+  (map AlignedDouble *** map AlignedDouble) .
+  mkInput
 
 
 compareGradients
@@ -353,16 +358,17 @@ compareGradients name mkInput mkNN targetFuncGrad targetFuncGrad' =
   compareNNGradients name mkInput mkNN targetFuncGrad mkInput mkNN targetFuncGrad'
 
 compareNNGradients
-  :: forall nn nn' k k' v v'.
-     (NNVectorLike k nn Double, Pretty (nn Double), ElemConstraints k Double)
-  => (NNVectorLike k' nn' Double, Pretty (nn' Double), ElemConstraints k' Double)
+  :: forall nn nn' k k' v v' a b.
+     (NNVectorLike k nn a, Pretty (nn a), ElemConstraints k a)
+  => (NNVectorLike k' nn' b, Pretty (nn' b), ElemConstraints k' b)
+  => (Show a, Pretty a, ToDouble a, Show b, Pretty b, ToDouble b)
   => String
-  -> (Double -> (v Double, v Double))
-  -> (State PureMT (nn Double))
-  -> (Vector (v Double, v Double) -> nn Double -> (Double, Grad nn Double))
-  -> (Double -> (v' Double, v' Double))
-  -> (State PureMT (nn' Double))
-  -> (Vector (v' Double, v' Double) -> nn' Double -> (Double, Grad nn' Double))
+  -> (Double -> (v a, v a))
+  -> (State PureMT (nn a))
+  -> (Vector (v a, v a) -> nn a -> (a, Grad nn a))
+  -> (Double -> (v' b, v' b))
+  -> (State PureMT (nn' b))
+  -> (Vector (v' b, v' b) -> nn' b -> (b, Grad nn' b))
   -> TestTree
 compareNNGradients name mkInput mkNN targetFuncGrad mkInput' mkNN' targetFuncGrad' =
   testCase name $ do
@@ -376,21 +382,30 @@ compareNNGradients name mkInput mkNN targetFuncGrad mkInput' mkNN' targetFuncGra
         "got:         " <> PP.text (T.pack $ show gradList') PP.<$>
         "got nn:      " <> pretty nn'
   where
-    nn :: nn Double
+    nn :: nn a
     nn = evalState mkNN mt
-    nn' :: nn' Double
+    nn' :: nn' b
     nn' = evalState mkNN' mt
     mt :: PureMT
     mt = pureMT 0
-    dataset :: Vector (v Double, v Double)
+    dataset :: Vector (v a, v a)
     dataset = V.fromList $ map mkInput [1] -- [1..10]
-    dataset' :: Vector (v' Double, v' Double)
+    dataset' :: Vector (v' b, v' b)
     dataset' = V.fromList $ map mkInput' [1] -- [1..10]
     (x, grad)   = targetFuncGrad dataset nn
     (x', grad') = targetFuncGrad' dataset' nn'
 
     gradList  = fmap (fmap (fmap ApproxEq)) $ NN.toWeightList $ getGrad grad
     gradList' = fmap (fmap (fmap ApproxEq)) $ NN.toWeightList $ getGrad grad'
+
+class ToDouble a where
+  toDouble :: a -> Double
+
+instance ToDouble Double where
+  toDouble = id
+
+instance ToDouble AlignedDouble where
+  toDouble = getAlignedDouble
 
 allTests :: TestTree
 allTests = testGroup "all tests"

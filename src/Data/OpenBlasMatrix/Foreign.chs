@@ -18,6 +18,8 @@ module Data.OpenBlasMatrix.Foreign where
 import Foreign
 import Foreign.C.Types
 
+import Data.Aligned.Double
+
 #include <cblas.h>
 
 {#context lib = "openblas"#}
@@ -76,12 +78,12 @@ foreign import ccall unsafe "cblas_dgemv" dgemv
   -> Size
   -> Size
   -> Double
-  -> Ptr Double
+  -> Ptr AlignedDouble
   -> Size
-  -> Ptr Double
+  -> Ptr AlignedDouble
   -> BlasInt
   -> Double
-  -> Ptr Double
+  -> Ptr AlignedDouble
   -> BlasInt
   -> IO ()
 
@@ -102,11 +104,11 @@ foreign import ccall unsafe "cblas_dger" dger
   -> Size
   -> Size
   -> Double
-  -> Ptr Double
+  -> Ptr AlignedDouble
   -> BlasInt
-  -> Ptr Double
+  -> Ptr AlignedDouble
   -> BlasInt
-  -> Ptr Double
+  -> Ptr AlignedDouble
   -> Size
   -> IO ()
 
@@ -134,26 +136,26 @@ foreign import ccall unsafe "cblas_dgemm" dgemm
   -> Size
   -> Size
   -> Double
-  -> Ptr Double
+  -> Ptr AlignedDouble
   -> Size
-  -> Ptr Double
+  -> Ptr AlignedDouble
   -> Size
   -> Double
-  -> Ptr Double
+  -> Ptr AlignedDouble
   -> Size
   -> IO ()
 
 foreign import ccall unsafe "add" addVectors
   :: Int
-  -> Ptr Double
-  -> Ptr Double
-  -> Ptr Double
+  -> Ptr AlignedDouble
+  -> Ptr AlignedDouble
+  -> Ptr AlignedDouble
   -> IO ()
 
 foreign import ccall unsafe "addScaled" addVectorsScaled
   :: Int
-  -> Ptr Double
+  -> Ptr AlignedDouble
   -> Double
-  -> Ptr Double
-  -> Ptr Double
+  -> Ptr AlignedDouble
+  -> Ptr AlignedDouble
   -> IO ()

@@ -34,6 +34,7 @@ import qualified Data.Vector.Storable as S
 import Foreign (Ptr)
 import Text.PrettyPrint.Leijen.Text (Pretty(..))
 
+import Data.Aligned.Double
 import Data.ConstrainedConvert (Convert)
 import qualified Data.ConstrainedConvert as Conv
 import Data.ConstrainedFunctor
@@ -42,17 +43,18 @@ import qualified Data.VectClass as VC
 import Data.Zippable
 import Util hiding (takeBy)
 
-newtype StorableVectorDouble a = StorableVectorDouble { getStorableVectorDouble :: S.Vector Double }
+newtype StorableVectorDouble a = StorableVectorDouble
+  { getStorableVectorDouble :: S.Vector AlignedDouble }
   deriving (Show, Eq, Ord, NFData)
 
 instance Pretty (StorableVectorDouble a) where
   pretty = pretty . S.toList . getStorableVectorDouble
 
-instance ConstrainedFunctor IsDoubleConstraint StorableVectorDouble where
+instance ConstrainedFunctor IsAlignedDoubleConstraint StorableVectorDouble where
   {-# INLINABLE cfmap #-}
   cfmap f = StorableVectorDouble . S.map f . getStorableVectorDouble
 
-instance Zippable IsDoubleConstraint StorableVectorDouble where
+instance Zippable IsAlignedDoubleConstraint StorableVectorDouble where
   {-# INLINABLE zipWith  #-}
   {-# INLINABLE zipWith3 #-}
   {-# INLINABLE zipWith4 #-}
@@ -60,13 +62,13 @@ instance Zippable IsDoubleConstraint StorableVectorDouble where
   zipWith3 f (StorableVectorDouble xs) (StorableVectorDouble ys) (StorableVectorDouble zs) = StorableVectorDouble $ S.zipWith3 f xs ys zs
   zipWith4 f (StorableVectorDouble xs) (StorableVectorDouble ys) (StorableVectorDouble zs) (StorableVectorDouble ws) = StorableVectorDouble $ S.zipWith4 f xs ys zs ws
 
-instance Convert IsDoubleConstraint StorableConstraint StorableVectorDouble S.Vector where
+instance Convert IsAlignedDoubleConstraint StorableConstraint StorableVectorDouble S.Vector where
   {-# INLINABLE convertTo   #-}
   {-# INLINABLE convertFrom #-}
   convertTo   = getStorableVectorDouble
   convertFrom = StorableVectorDouble
 
-instance Vect IsDoubleConstraint StorableVectorDouble where
+instance Vect IsAlignedDoubleConstraint StorableVectorDouble where
   {-# INLINABLE fromList   #-}
   {-# INLINABLE toList     #-}
   {-# INLINABLE replicate  #-}
@@ -95,14 +97,14 @@ instance Vect IsDoubleConstraint StorableVectorDouble where
 
 {-# INLINABLE concat #-}
 concat
-  :: (ElemConstraints IsDoubleConstraint a, ElemConstraints IsDoubleConstraint b)
+  :: (ElemConstraints IsAlignedDoubleConstraint a, ElemConstraints IsAlignedDoubleConstraint b)
   => [StorableVectorDouble a]
   -> StorableVectorDouble a
 concat = StorableVectorDouble . S.concat . map getStorableVectorDouble
 
 {-# INLINABLE concatMap #-}
 concatMap
-  :: (ElemConstraints IsDoubleConstraint a, ElemConstraints IsDoubleConstraint b)
+  :: (ElemConstraints IsAlignedDoubleConstraint a, ElemConstraints IsAlignedDoubleConstraint b)
   => (a -> StorableVectorDouble b)
   -> StorableVectorDouble a
   -> StorableVectorDouble b
@@ -110,7 +112,7 @@ concatMap f = StorableVectorDouble . S.concatMap (getStorableVectorDouble . f) .
 
 {-# INLINABLE takeBy #-}
 takeBy
-  :: (ElemConstraints IsDoubleConstraint a)
+  :: (ElemConstraints IsAlignedDoubleConstraint a)
   => Int
   -> Int
   -> StorableVectorDouble a
@@ -120,14 +122,14 @@ takeBy rows cols (StorableVectorDouble vs) =
 
 {-# INLINABLE fromList #-}
 fromList
-  :: (ElemConstraints IsDoubleConstraint a)
+  :: (ElemConstraints IsAlignedDoubleConstraint a)
   => [a]
   -> StorableVectorDouble a
 fromList = StorableVectorDouble . S.fromList
 
 {-# INLINABLE backpermute #-}
 backpermute
-  :: (ElemConstraints IsDoubleConstraint a)
+  :: (ElemConstraints IsAlignedDoubleConstraint a)
   => StorableVectorDouble a
   -> S.Vector Int
   -> StorableVectorDouble a
@@ -135,7 +137,7 @@ backpermute (StorableVectorDouble xs) = StorableVectorDouble . S.backpermute xs
 
 {-# INLINABLE unsafeBackpermute #-}
 unsafeBackpermute
-  :: (ElemConstraints IsDoubleConstraint a)
+  :: (ElemConstraints IsAlignedDoubleConstraint a)
   => StorableVectorDouble a
   -> S.Vector Int
   -> StorableVectorDouble a
@@ -143,7 +145,7 @@ unsafeBackpermute (StorableVectorDouble xs) = StorableVectorDouble . S.unsafeBac
 
 {-# INLINABLE unsafeWith #-}
 unsafeWith
-  :: (ElemConstraints IsDoubleConstraint a)
+  :: (ElemConstraints IsAlignedDoubleConstraint a)
   => StorableVectorDouble a
   -> (Ptr a -> IO b)
   -> IO b

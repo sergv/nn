@@ -32,8 +32,6 @@ import qualified NN.Specific as S
 import Nonlinearity
 import Util
 
-import Text.PrettyPrint.Leijen.Text (Pretty(..))
-
 class NNVectorLike k (nn :: * -> *) a | nn -> k where
   -- z = x + b * y
   -- addScaled :: (Floating a) => nn a -> a -> nn a -> nn a

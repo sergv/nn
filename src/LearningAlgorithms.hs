@@ -58,7 +58,7 @@ gradientDescent
   => Double
   -> nn Double
   -> Vector (v Double, v Double)
-  -> IterateData nn ()
+  -> IterateData nn () Double
 gradientDescent alpha nn dataset =
   IterateData f () value0 gradient0Size
   where
@@ -71,16 +71,16 @@ gradientDescent alpha nn dataset =
         (x, y, z) = gradientDescentStep alpha nn dataset
 
 
-data DeltaInfo = DeltaInfo
-  { delta0        :: Double
-  , deltaMin      :: Double
-  , deltaMax      :: Double
-  , deltaIncrease :: Double
-  , deltaDecrease :: Double
+data DeltaInfo a = DeltaInfo
+  { delta0        :: a
+  , deltaMin      :: a
+  , deltaMax      :: a
+  , deltaIncrease :: a
+  , deltaDecrease :: a
   }
   deriving (Show, Eq, Ord)
 
-standardDeltaInfo :: DeltaInfo
+standardDeltaInfo :: (Floating a) => DeltaInfo a
 standardDeltaInfo = DeltaInfo
   { delta0        = 0.1
   , deltaMin      = 1e-6
@@ -89,28 +89,29 @@ standardDeltaInfo = DeltaInfo
   , deltaDecrease = 0.5
   }
 
-data RPropState nn = RPropState
-  { rpropDeltas :: nn Double
-  , rpropGrad   :: Grad nn Double
+data RPropState nn a = RPropState
+  { rpropDeltas :: nn a
+  , rpropGrad   :: Grad nn a
   }
 
-deriving instance (Show (nn Double)) => Show (RPropState nn)
-deriving instance (Eq (nn Double)) => Eq (RPropState nn)
-deriving instance (Ord (nn Double)) => Ord (RPropState nn)
+deriving instance (Show (nn a)) => Show (RPropState nn a)
+deriving instance (Eq (nn a)) => Eq (RPropState nn a)
+deriving instance (Ord (nn a)) => Ord (RPropState nn a)
 
 {-# INLINABLE rprop #-}
 rprop
-  :: forall k nn k' nn' v.
+  :: forall k nn k' nn' v a.
      -- (ConstrainedFunctor k nn, Zippable k nn,
      --  NNVectorLike k nn Double, NeuralNetwork k nn v Double)
-     (NNVectorLike k nn Double, NeuralNetwork k nn v Double, Convert k k' nn nn')
-  => (ElemConstraints k Double)
+     (NNVectorLike k nn a, NeuralNetwork k nn v a, Convert k k' nn nn')
+  => (ElemConstraints k a)
   => (ConstrainedFunctor k' nn', Zippable k' nn')
-  => (ElemConstraints k' Double, ElemConstraints k' V3)
-  => DeltaInfo
-  -> nn Double
-  -> Vector (v Double, v Double)
-  -> IterateData nn (RPropState nn)
+  => (ElemConstraints k' a, ElemConstraints k' (V3 a))
+  => (Num a, Ord a)
+  => DeltaInfo a
+  -> nn a
+  -> Vector (v a, v a)
+  -> IterateData nn (RPropState nn a) a
 rprop (DeltaInfo {delta0, deltaMin, deltaMax, deltaIncrease, deltaDecrease}) nn dataset =
   IterateData f (RPropState initialDeltas initialGrad) value0 gradient0Size
   where
@@ -118,19 +119,19 @@ rprop (DeltaInfo {delta0, deltaMin, deltaMax, deltaIncrease, deltaDecrease}) nn 
     gradient0Size       = NN.size $ getGrad gradient0
 
     initialDeltas = Conv.mapConverting (const delta0) nn
-    initialGrad   = Grad $ Conv.mapConverting (const 0) nn
-    f :: RPropState nn
-      -> nn Double
-      -> ( Double
-         , Grad nn Double
-         , nn Double
-         , RPropState nn
+    initialGrad   = Grad $ Conv.mapConverting (const (0 :: a)) nn
+    f :: RPropState nn a
+      -> nn a
+      -> ( a
+         , Grad nn a
+         , nn a
+         , RPropState nn a
          )
     f (RPropState deltas prevGradient) nn =
       (value, gradient, nn', (RPropState deltas' (Grad prevGradient')))
       where
         (value, gradient) = NN.targetFunctionGrad dataset nn
-        upd :: nn' V3
+        upd :: nn' (V3 a)
         upd               = zipWith4
                               g
                               (Conv.convertTo $ getGrad prevGradient)
@@ -141,7 +142,7 @@ rprop (DeltaInfo {delta0, deltaMin, deltaMax, deltaIncrease, deltaDecrease}) nn 
         deltas'           = Conv.convertFrom $ cfmap (\(V3 _ y _) -> y) upd
         prevGradient'     = Conv.convertFrom $ cfmap (\(V3 _ _ z) -> z) upd
 
-        g :: Double -> Double -> Double -> Double -> V3
+        g :: a -> a -> a -> a -> V3 a
         g dwPrev dw w delta
           | dwTrend > 0 = let delta'  = min (delta *! deltaIncrease) deltaMax
                               w'      = w -! signum dw *! delta'
@@ -158,16 +159,16 @@ rprop (DeltaInfo {delta0, deltaMin, deltaMax, deltaIncrease, deltaDecrease}) nn 
           where
             dwTrend = dwPrev *! dw
 
-data IterateData nn s = IterateData
-  { iterateFunc          :: s -> nn Double -> (Double, Grad nn Double, nn Double, s)
+data IterateData nn s a = IterateData
+  { iterateFunc          :: s -> nn a -> (a, Grad nn a, nn a, s)
   , iterateFuncInitState :: s
-  , iterateInitValue     :: Double
-  , iterateInitGradSize  :: Double
+  , iterateInitValue     :: a
+  , iterateInitGradSize  :: a
   }
 
 iteratedUpdates
   :: forall k nn s. (NNVectorLike k nn Double, ElemConstraints k Double)
-  => IterateData nn s
+  => IterateData nn s Double
   -> ErrInfo
   -> nn Double
   -> (Double, nn Double)
@@ -188,14 +189,14 @@ iteratedUpdates (IterateData f fState value0 gradient0Size) (ErrInfo {epsilon, e
         errDelta                               = abs (targetFuncVal - prevTargetFuncVal)
 
 constantUpdates
-  :: forall nn s. IterateData nn s
+  :: forall nn s a. IterateData nn s a
   -> Int
-  -> nn Double
-  -> (Double, nn Double)
+  -> nn a
+  -> (a, nn a)
 constantUpdates (IterateData f fState _value0 _gradient0Size) iterations nn =
   go 0 nn fState
   where
-    go :: Int -> nn Double -> s -> (Double, nn Double)
+    go :: Int -> nn a -> s -> (a, nn a)
     go n nn state
       | n == iterations = (targetFuncVal, nn)
       | otherwise =

@@ -12,7 +12,9 @@
 ----------------------------------------------------------------------------
 
 {-# LANGUAGE BangPatterns          #-}
+{-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TypeFamilies          #-}
 
 module Data.V3 where
@@ -24,19 +26,19 @@ import qualified Data.Vector.Unboxed as U
 import Foreign.Ptr (castPtr, plusPtr)
 import Foreign.Storable
 
-data V3 =
+data V3 a =
   V3
-    {-# UNPACK #-} !Double
-    {-# UNPACK #-} !Double
-    {-# UNPACK #-} !Double
+    {-# UNPACK #-} !a
+    {-# UNPACK #-} !a
+    {-# UNPACK #-} !a
   deriving (Show, Eq, Ord)
 
-newtype instance U.MVector s V3 =
-  MV_StrictDoubleTriple (U.MVector s (Double, Double, Double))
-newtype instance U.Vector    V3 =
-  V_StrictDoubleTriple  (U.Vector    (Double, Double, Double))
+newtype instance U.MVector s (V3 a) =
+  MV_StrictDoubleTriple (U.MVector s (a, a, a))
+newtype instance U.Vector    (V3 a) =
+  V_StrictDoubleTriple  (U.Vector    (a, a, a))
 
-instance GM.MVector U.MVector V3 where
+instance (Unbox a) => GM.MVector U.MVector (V3 a) where
   {-# INLINE basicLength          #-}
   {-# INLINE basicUnsafeSlice     #-}
   {-# INLINE basicOverlaps        #-}
@@ -71,7 +73,7 @@ instance GM.MVector U.MVector V3 where
   basicUnsafeGrow (MV_StrictDoubleTriple target) n =
     MV_StrictDoubleTriple <$> GM.basicUnsafeGrow target n
 
-instance G.Vector U.Vector V3 where
+instance (Unbox a) => G.Vector U.Vector (V3 a) where
   {-# INLINE basicUnsafeFreeze #-}
   {-# INLINE basicUnsafeThaw   #-}
   {-# INLINE basicLength       #-}
@@ -93,11 +95,11 @@ instance G.Vector U.Vector V3 where
   elemseq (V_StrictDoubleTriple v) (V3 x y z) w =
     G.elemseq v (x, y, z) w
 
-instance Unbox V3
+instance (Unbox a) => Unbox (V3 a)
 
-instance Storable V3 where
-  sizeOf _    = 3 * sizeOf (undefined :: Double)
-  alignment _ = 3 * alignment (undefined :: Double)
+instance forall a. (Storable a) => Storable (V3 a) where
+  sizeOf _    = 3 * sizeOf (undefined :: a)
+  alignment _ = 3 * alignment (undefined :: a)
   peek ptr = do
     x <- peek (castPtr ptr)
     let ptr' = plusPtr ptr $ sizeOf x
