@@ -27,7 +27,7 @@ import Data.Vector (Vector)
 import qualified Data.Vector as V
 import qualified Data.Vector.Storable as S
 import qualified Data.Vector.Unboxed as U
-import Prelude (Num(..), Eq(..), ($), Int, Monad, error, otherwise, (.))
+import Prelude (Num(..), Eq(..), ($), Int, Monad, error, otherwise)
 import qualified Prelude as P
 
 import Data.ConstrainedFunctor
@@ -39,6 +39,7 @@ class (Zippable k v) => Vect k v | v -> k where
   {-# INLINABLE dot       #-}
   fromList   :: (ElemConstraints k a) => [a] -> v a
   toList     :: (ElemConstraints k a) => v a -> [a]
+  singleton  :: (ElemConstraints k a) => a -> v a
   replicate  :: (ElemConstraints k a) => Int -> a -> v a
   map        :: (ElemConstraints k a, ElemConstraints k b) => (a -> b) -> v a -> v b
   sum        :: (ElemConstraints k a, Num a) => v a -> a
@@ -67,6 +68,7 @@ class TransposableVector k v | v -> k where
 instance Vect NoConstraints Vector where
   {-# INLINABLE fromList   #-}
   {-# INLINABLE toList     #-}
+  {-# INLINABLE singleton  #-}
   {-# INLINABLE replicate  #-}
   {-# INLINABLE map        #-}
   {-# INLINABLE sum        #-}
@@ -79,6 +81,7 @@ instance Vect NoConstraints Vector where
   {-# INLINABLE replicateM #-}
   fromList   = V.fromList
   toList     = V.toList
+  singleton  = V.singleton
   replicate  = V.replicate
   map        = V.map
   sum        = V.sum
@@ -94,6 +97,7 @@ instance Vect NoConstraints Vector where
 instance Vect NoConstraints [] where
   {-# INLINABLE fromList   #-}
   {-# INLINABLE toList     #-}
+  {-# INLINABLE singleton  #-}
   {-# INLINABLE replicate  #-}
   {-# INLINABLE map        #-}
   {-# INLINABLE sum        #-}
@@ -106,6 +110,7 @@ instance Vect NoConstraints [] where
   {-# INLINABLE replicateM #-}
   fromList   = P.id
   toList     = P.id
+  singleton  = (:[])
   replicate  = L.replicate
   map        = L.map
   sum        = L.sum
@@ -121,6 +126,7 @@ instance Vect NoConstraints [] where
 instance Vect UnboxConstraint U.Vector where
   {-# INLINABLE fromList   #-}
   {-# INLINABLE toList     #-}
+  {-# INLINABLE singleton  #-}
   {-# INLINABLE replicate  #-}
   {-# INLINABLE map        #-}
   {-# INLINABLE sum        #-}
@@ -133,6 +139,7 @@ instance Vect UnboxConstraint U.Vector where
   {-# INLINABLE replicateM #-}
   fromList   = U.fromList
   toList     = U.toList
+  singleton  = U.singleton
   replicate  = U.replicate
   map        = U.map
   sum        = U.sum
@@ -148,6 +155,7 @@ instance Vect UnboxConstraint U.Vector where
 instance Vect StorableConstraint S.Vector where
   {-# INLINABLE fromList   #-}
   {-# INLINABLE toList     #-}
+  {-# INLINABLE singleton  #-}
   {-# INLINABLE replicate  #-}
   {-# INLINABLE map        #-}
   {-# INLINABLE sum        #-}
@@ -160,6 +168,7 @@ instance Vect StorableConstraint S.Vector where
   {-# INLINABLE replicateM #-}
   fromList   = S.fromList
   toList     = S.toList
+  singleton  = S.singleton
   replicate  = S.replicate
   map        = S.map
   sum        = S.sum

@@ -34,9 +34,9 @@ import Util
 
 import Debug.Trace
 
-data ErrInfo = ErrInfo
-  { epsilon                :: Double
-  , errorFuncAbsoluteValue :: Double
+data ErrInfo a = ErrInfo
+  { epsilon                :: a
+  , errorFuncAbsoluteValue :: a
   }
   deriving (Show, Eq, Ord)
 
@@ -167,17 +167,17 @@ data IterateData nn s a = IterateData
   }
 
 iteratedUpdates
-  :: forall k nn s. (NNVectorLike k nn Double, ElemConstraints k Double)
-  => IterateData nn s Double
-  -> ErrInfo
-  -> nn Double
-  -> (Double, nn Double)
+  :: forall k nn s a. (NNVectorLike k nn a, ElemConstraints k a, Num a, Floating a, Ord a)
+  => IterateData nn s a
+  -> ErrInfo a
+  -> nn a
+  -> (a, nn a)
 iteratedUpdates (IterateData f fState value0 gradient0Size) (ErrInfo {epsilon, errorFuncAbsoluteValue}) nn =
   go 0 (value0 + sqrt epsilon) nn fState
   where
-    go :: Int -> Double -> nn Double -> s -> (Double, nn Double)
+    go :: Int -> a -> nn a -> s -> (a, nn a)
     go n prevTargetFuncVal nn state =
-      trace (printf "#%d, error = %g, errDelta = %g" n targetFuncVal errDelta) $
+      -- trace (printf "#%d, error = %g, errDelta = %g" n targetFuncVal errDelta) $
       if errDelta > epsilon &&
          gradientSize > epsilon * gradient0Size &&
          abs targetFuncVal > errorFuncAbsoluteValue

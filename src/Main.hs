@@ -16,6 +16,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies        #-}
 
 module Main where
 
@@ -28,13 +29,9 @@ import Control.Monad.State
 import qualified Data.Text.Lazy.IO as T
 import Data.Vector (Vector)
 import qualified Data.Vector as V
-import qualified Data.Vector.Storable as S
-import qualified Data.Vector.Unboxed as U
 import System.Directory
+import Text.PrettyPrint.Leijen.Text (Pretty)
 import Text.Printf
-
-import Criterion.Main
-import Criterion.Types
 
 import Data.Random.Distribution.Normal (stdNormal)
 import Data.Random.Sample (sample)
@@ -50,14 +47,15 @@ import Graphics.Rendering.Chart.Backend.Cairo
 
 import Data.Aligned.Double
 import Data.OpenBlasMatrix (OpenBlasMatrix)
-import Data.PureMatrix (PureMatrix)
 import Data.StorableVectorDouble (StorableVectorDouble(..))
-import qualified Data.StorableVectorDouble as SVD
-import Data.UnboxMatrix (UnboxMatrix)
-import Data.UnboxMatrixWithTranspose (UnboxMatrixWithTranspose)
+import Data.V3 (V3)
+import Data.ConstrainedConvert (Convert)
+import Data.ConstrainedFunctor
+import Data.VectClass (Vect)
 import qualified Data.VectClass as VC
+import Data.Zippable
 import LearningAlgorithms
-import NN.Specific
+import NN
 import qualified NN.Generic as NG
 import Nonlinearity
 import Util
@@ -84,33 +82,9 @@ import Util
 
 -- Algorithms
 
-criterionConfig :: Config
-criterionConfig =
-  defaultConfig { forceGC    = True
-                , reportFile = Just "/tmp/nn-benchmark.html"
-                , resamples  = 10
-                }
-
 nnHiddenLayersSize :: [Int]
 nnHiddenLayersSize = [10, 10]
 
-mkSpecificNN :: (Applicative m, MonadRandom m) => m (NN HyperbolicTangent Nonlinear Double)
-mkSpecificNN = makeNN 1 nnHiddenLayersSize 1 (sample stdNormal)
--- for sine dataset
--- mkSpecificNN = makeNN hyperbolicTangentNT nonlinearOut 1 [2, 2] 1
-
-mkGenericVectorNN :: (Applicative m, MonadRandom m) => m (NG.NN (PureMatrix Vector) Vector HyperbolicTangent Nonlinear Double)
-mkGenericVectorNN = NG.makeNN 1 nnHiddenLayersSize 1 (sample stdNormal)
-
-mkGenericListNN :: (Applicative m, MonadRandom m) => m (NG.NN (PureMatrix []) [] HyperbolicTangent Nonlinear Double)
-mkGenericListNN = NG.makeNN 1 nnHiddenLayersSize 1 (sample stdNormal)
-
-mkUnboxMatrixNN :: (Applicative m, MonadRandom m) => m (NG.NN UnboxMatrix U.Vector HyperbolicTangent Nonlinear Double)
-mkUnboxMatrixNN = NG.makeNN 1 nnHiddenLayersSize 1 (sample stdNormal)
-mkUnboxMatrixWithTransposeNN
-  :: (Applicative m, MonadRandom m)
-  => m (NG.NN UnboxMatrixWithTranspose U.Vector HyperbolicTangent Nonlinear Double)
-mkUnboxMatrixWithTransposeNN = NG.makeNN 1 nnHiddenLayersSize 1 (sample stdNormal)
 mkOpenBlasMatrixNN
   :: (Applicative m, MonadRandom m)
   => m (NG.NN OpenBlasMatrix StorableVectorDouble HyperbolicTangent Nonlinear AlignedDouble)
@@ -118,67 +92,16 @@ mkOpenBlasMatrixNN = NG.makeNN 1 nnHiddenLayersSize 1 (AlignedDouble <$> sample 
 
 main :: IO ()
 main = do
-  let nn        = evalState mkSpecificNN mt
-      rpropData = rprop standardDeltaInfo nn trainDataset
-  let nnGVec        = evalState mkGenericVectorNN mt
-      rpropDataGVec = rprop standardDeltaInfo nnGVec trainDataset
-  let nnGList        = evalState mkGenericListNN mt
-      rpropDataGList = rprop standardDeltaInfo nnGList $
-                       V.map (V.toList *** V.toList) trainDataset
-  let nnGUnboxMatrix        = evalState mkUnboxMatrixNN mt
-      unboxMatrixDataset :: Vector (U.Vector Double, U.Vector Double)
-      unboxMatrixDataset    = V.map (VC.fromList . V.toList *** VC.fromList . V.toList) trainDataset
-      rpropDataGUnboxMatrix :: IterateData
-                                 (NG.NN UnboxMatrix U.Vector HyperbolicTangent Nonlinear)
-                                 (RPropState
-                                   (NG.NN UnboxMatrix U.Vector HyperbolicTangent Nonlinear)
-                                   Double)
-                                 Double
-      rpropDataGUnboxMatrix = rprop standardDeltaInfo nnGUnboxMatrix unboxMatrixDataset
-  let nnGUnboxMatrixWithTranspose = evalState mkUnboxMatrixWithTransposeNN mt
-      rpropDataGUnboxMatrixWithTranspose
-        :: IterateData
-             (NG.NN UnboxMatrixWithTranspose U.Vector HyperbolicTangent Nonlinear)
-             (RPropState
-               (NG.NN UnboxMatrixWithTranspose U.Vector HyperbolicTangent Nonlinear)
-               Double)
-             Double
-      rpropDataGUnboxMatrixWithTranspose = rprop standardDeltaInfo nnGUnboxMatrixWithTranspose unboxMatrixDataset
-  let openBlasMatrixDataset :: Vector (StorableVectorDouble AlignedDouble, StorableVectorDouble AlignedDouble)
-      openBlasMatrixDataset = V.map (VC.fromList . V.toList . V.map AlignedDouble *** VC.fromList . V.toList . VC.map AlignedDouble) trainDataset
-      nnGOpenBlasMatrix = evalState mkOpenBlasMatrixNN mt
-      rpropDataGOpenBlasMatrix
-        :: IterateData
-             (NG.NN OpenBlasMatrix StorableVectorDouble HyperbolicTangent Nonlinear)
-             (RPropState
-               (NG.NN OpenBlasMatrix StorableVectorDouble HyperbolicTangent Nonlinear)
-               AlignedDouble)
-             AlignedDouble
-      rpropDataGOpenBlasMatrix = rprop standardDeltaInfo nnGOpenBlasMatrix openBlasMatrixDataset
-
-  defaultMainWith criterionConfig [
-    --  bench "rprop specific" $
-    --  nf (constantUpdates rpropData iterations) nn
-    -- , bench "rprop generic - Vector" $
-    --   nf (constantUpdates rpropDataGVec iterations) nnGVec
-    -- , bench "rprop generic - List" $
-    --   nf (constantUpdates rpropDataGList iterations) nnGList
-    -- ,
-      -- bench "rprop generic - UnboxMatrix" $
-      -- nf (constantUpdates rpropDataGUnboxMatrix iterations) nnGUnboxMatrix
-    -- ,
-      bench "rprop generic - UnboxMatrixWithTranspose" $
-      nf (constantUpdates rpropDataGUnboxMatrixWithTranspose iterations) nnGUnboxMatrixWithTranspose
-    , bench "rprop generic - OpenBlasMatrix" $
-      nf (constantUpdates rpropDataGOpenBlasMatrix iterations) nnGOpenBlasMatrix
-    -- , bench "rprop unboxed tuple" $ nf (rprop' errInfo standardDeltaInfo nn) trainDataset
-    ]
-  -- void $ searchForFittingNN mt mkNN errInfo trainDataset
-
-  -- print nn'
+  nn' <- searchForFittingNN mt mkOpenBlasMatrixNN errInfo openBlasMatrixDataset
+  print nn'
   where
-    iterations = 10
     errInfo = ErrInfo 1e-5 1e-8
+
+    openBlasMatrixDataset :: Vector (StorableVectorDouble AlignedDouble, StorableVectorDouble AlignedDouble)
+    openBlasMatrixDataset =
+      V.map (mkStorableVectorDouble *** mkStorableVectorDouble) trainDataset
+
+    mkStorableVectorDouble = VC.fromList . V.toList . V.map AlignedDouble
 
     -- trainDataset = xorDataset
     -- xorDataset :: Vector (Vector Double, Vector Double)
@@ -205,16 +128,19 @@ main = do
     mt = pureMT 0
 
     searchForFittingNN
-      :: (Nonlinearity n, OutputType o n)
+      :: forall k nn v a k' nn'. (NNVectorLike k nn a, NeuralNetwork k nn v a, Pretty (nn a))
+      => (ElemConstraints k a, Vect k v, Show a, Num a, Floating a, PlotValue a)
+      => (Convert k k' nn nn', ConstrainedFunctor k' nn', Zippable k' nn')
+      => (ElemConstraints k' a, ElemConstraints k' (V3 a))
       => PureMT
-      -> State PureMT (NN n o Double)
-      -> ErrInfo
-      -> Vector (Vector Double, Vector Double)
-      -> IO (NN n o Double)
+      -> State PureMT (nn a)
+      -> ErrInfo a
+      -> Vector (v a, v a)
+      -> IO (nn a)
     searchForFittingNN mt mkNN errInfo dataset = go mt 0
       where
-        plottableDataset :: Vector (Double, Double)
-        plottableDataset = V.map (head . V.toList *** head . V.toList) dataset
+        plottableDataset :: Vector (a, a)
+        plottableDataset = V.map (head . VC.toList *** head . VC.toList) dataset
         go mt n = do
           printf "iteration %d\n" n
           plotResult n errorAmt nn' plottableDataset
@@ -224,11 +150,11 @@ main = do
             putStrLn "Start NN"
             T.putStrLn $ display nn
             putStrLn "Start NN on dataset"
-            print $ V.map (head . V.toList . forwardPropagate nn . fst) dataset
+            print $ V.map (head . VC.toList . forwardPropagate nn . fst) dataset
             putStrLn "Result NN"
             T.putStrLn $ display nn'
             putStrLn "Result NN on dataset"
-            print $ V.map (head . V.toList . forwardPropagate nn' . fst) dataset
+            print $ V.map (head . VC.toList . forwardPropagate nn' . fst) dataset
             return nn'
           where
             (nn, mt')       = runState mkNN mt
@@ -236,8 +162,8 @@ main = do
             (errorAmt, nn') = iteratedUpdates rpropData errInfo nn
 
 plotResult
-  :: (Nonlinearity n, OutputType o n)
-  => Int -> Double -> NN n o Double -> Vector (Double, Double) -> IO ()
+  :: (NeuralNetwork k nn v a, ElemConstraints k a, Vect k v, Ord a, Show a, PlotValue a)
+  => Int -> a -> nn a -> Vector (a, a) -> IO ()
 plotResult n err nn dataset = do
   createDirectoryIfMissing True plotPath
   void $ renderableToFile def (printf "%s/model%05d.png" plotPath n) chart
@@ -250,12 +176,12 @@ plotResult n err nn dataset = do
                $ plot_lines_title .~ "original"
                $ def
 
-        predictedDataset = V.map (id *** V.head . forwardPropagate nn . V.singleton) dataset
+        predictedDataset = V.map (id *** head . VC.toList . forwardPropagate nn . VC.singleton) dataset
         predicted = plot_lines_values .~ [V.toList predictedDataset]
                   $ plot_lines_style  . line_color .~ opaque blue
                   $ plot_lines_title .~ "predicted model"
                   $ def
 
-        layout = layout_title .~ (printf "Model #%d, error = %g" n err)
+        layout = layout_title .~ (printf "Model #%d, error = %s" n (show err))
                $ layout_plots .~ [toPlot target, toPlot predicted]
                $ def

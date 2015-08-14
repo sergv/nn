@@ -57,7 +57,7 @@ instance (Nonlinearity n, OutputType o n, Floating a, Show a) => NNVectorLike No
 
 instance (Nonlinearity n, OutputType o n, Floating a, Show a) => NeuralNetwork NoConstraints (S.NN n o) Vector a where
   forwardPropagate   = S.forwardPropagate
-  targetFunctionGrad = S.backprop -- S.targetFunctionGrad
+  targetFunctionGrad = S.targetFunctionGrad -- S.backprop -- S.targetFunctionGrad
 
 
 instance (Nonlinearity n, OutputType o n, MC.Matrix k w v, VC.Vect k v, Zippable k w, ConstrainedFunctor k w, Floating a, Show a) => NNVectorLike k (G.NN w v n o) a where

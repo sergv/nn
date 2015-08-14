@@ -29,11 +29,13 @@ import Text.PrettyPrint.Leijen.Text (Pretty(..))
 
 import Data.ConstrainedFunctor
 
+import Graphics.Rendering.Chart (PlotValue)
+
 #include <arithmetic.h>
 
 newtype AlignedDouble = AlignedDouble
   { getAlignedDouble :: Double }
-  deriving (Eq, Ord, Num, Fractional, Floating, NFData)
+  deriving (Eq, Ord, Num, Fractional, Floating, NFData, PlotValue)
 
 data IsAlignedDoubleConstraint
 type instance ElemConstraints IsAlignedDoubleConstraint = (~) AlignedDouble

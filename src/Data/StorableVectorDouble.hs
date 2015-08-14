@@ -74,6 +74,7 @@ instance Convert IsAlignedDoubleConstraint StorableConstraint StorableVectorDoub
 instance Vect IsAlignedDoubleConstraint StorableVectorDouble where
   {-# INLINABLE fromList   #-}
   {-# INLINABLE toList     #-}
+  {-# INLINABLE singleton  #-}
   {-# INLINABLE replicate  #-}
   {-# INLINABLE map        #-}
   {-# INLINABLE sum        #-}
@@ -86,6 +87,7 @@ instance Vect IsAlignedDoubleConstraint StorableVectorDouble where
   {-# INLINABLE replicateM #-}
   fromList        = StorableVectorDouble . S.fromList
   toList          = S.toList . getStorableVectorDouble
+  singleton       = StorableVectorDouble . S.singleton
   replicate n     = StorableVectorDouble . S.replicate n
   map f           = StorableVectorDouble . S.map f . getStorableVectorDouble
   sum             = S.sum . getStorableVectorDouble

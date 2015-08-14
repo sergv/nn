@@ -59,6 +59,7 @@ instance Zippable IsDoubleConstraint VectorDouble where
 instance Vect IsDoubleConstraint VectorDouble where
   {-# INLINABLE fromList   #-}
   {-# INLINABLE toList     #-}
+  {-# INLINABLE singleton  #-}
   {-# INLINABLE replicate  #-}
   {-# INLINABLE map        #-}
   {-# INLINABLE sum        #-}
@@ -71,6 +72,7 @@ instance Vect IsDoubleConstraint VectorDouble where
   {-# INLINABLE replicateM #-}
   fromList           = VectorDouble . U.fromList
   toList             = U.toList . getVectorDouble
+  singleton          = VectorDouble . U.singleton
   replicate n        = VectorDouble . U.replicate n
   map f              = VectorDouble . U.map f . getVectorDouble
   sum                = U.sum . getVectorDouble
