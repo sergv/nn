@@ -183,4 +183,4 @@ instance TransposableVector NoConstraints [] where
 
 {-# INLINABLE normL2Square #-}
 normL2Square :: (Vect k v, Num a, ElemConstraints k a) => v a -> a
-normL2Square = sum . map (\x -> x *! x)
+normL2Square xs = dot xs xs

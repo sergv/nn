@@ -55,6 +55,7 @@ import Data.Random.Source.PureMT (PureMT, pureMT)
 
 import qualified MatrixTests
 import qualified OtherTests
+import qualified VectorTests
 
 default (Int)
 
@@ -411,6 +412,7 @@ allTests :: TestTree
 allTests = testGroup "all tests"
   [ tests
   , MatrixTests.tests
+  , VectorTests.tests
   , OtherTests.tests
   ]
 

@@ -43,7 +43,7 @@ tests = testGroup "Matrix tests"
 
 matrixTests
   :: forall k w v a. (Vect k v, Matrix k w v)
-  => (ElemConstraints k a, Show (w a), Eq (w a), Show (v a), Eq (v a), Show a, Num a)
+  => (ElemConstraints k a, Show (w a), Eq (w a), Show (v a), Eq (v a), Show a, Eq a, Num a)
   => String
   -> Proxy w
   -> Proxy a
@@ -74,6 +74,8 @@ matrixTests name _ _ = testGroup name
     MC.addScaled testMatrix 2 testMatrix @?= imat [[3, 6], [9, 12], [15, 18]]
   , testCase "matrix addition" $
     testMatrix MC.|+| testMatrix @?= imat [[2, 4], [6, 8], [10, 12]]
+  , testCase "normL2Square" $
+    MC.normL2Square testMatrix @?= 91
 
   -- | 1 2 |   | 1 4 5 |   | 5  10 17 |
   -- | 3 4 | * | 2 3 6 | = | 11 24 39 |

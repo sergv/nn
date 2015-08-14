@@ -19,5 +19,9 @@ void addScaled(int n,
                const double_aligned * __restrict ys,
                double_aligned * __restrict zs);
 
+double dot(int n,
+           const double_aligned * __restrict xs,
+           const double_aligned * __restrict ys);
+
 
 #endif /* #ifndef ARITHMETIC_H_ */

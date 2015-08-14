@@ -60,11 +60,11 @@ class (Vect k v) => Matrix k w v | w -> v k where
   matrixMultByTransposedRight :: (ElemConstraints k a, Num a) => w a -> w a -> w a
   matrixMultByTransposedRight x y = matrixMult x (transpose y)
 
-
-normL2Square
-  :: (Matrix k w v, Num a, ConstrainedFunctor k w, ElemConstraints k a)
-  => w a -> a
-normL2Square matr = sum $ cfmap (\x -> x * x) matr
+  normL2Square :: (Matrix k w v, Num a, ElemConstraints k a) => w a -> a
+  default normL2Square
+    :: (Matrix k w v, Num a, ConstrainedFunctor k w, ElemConstraints k a)
+    => w a -> a
+  normL2Square matr = sum $ cfmap (\x -> x * x) matr
 -- normL2Square matr = VC.sum $ vecMulRight matrSquares v
 --   where
 --     matrSquares = cfmap (\x -> x * x) matr

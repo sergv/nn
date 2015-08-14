@@ -31,10 +31,13 @@ where
 import Prelude hiding (concat, concatMap, zipWith, zipWith3)
 import Control.DeepSeq
 import qualified Data.Vector.Storable as S
+import qualified Data.Vector.Storable.Mutable as SM
 import Foreign (Ptr)
 import Text.PrettyPrint.Leijen.Text (Pretty(..))
+import System.IO.Unsafe
 
 import Data.Aligned.Double
+import Data.OpenBlasMatrix.Foreign (addVectors, addVectorsScaled, dotProduct)
 import Data.ConstrainedConvert (Convert)
 import qualified Data.ConstrainedConvert as Conv
 import Data.ConstrainedFunctor
@@ -86,14 +89,50 @@ instance Vect IsAlignedDoubleConstraint StorableVectorDouble where
   replicate n     = StorableVectorDouble . S.replicate n
   map f           = StorableVectorDouble . S.map f . getStorableVectorDouble
   sum             = S.sum . getStorableVectorDouble
-  (.+.)           = zipWith (+!)
+  (.+.) (StorableVectorDouble xs) (StorableVectorDouble ys) =
+    -- | S.length xs /= S.length ys =
+    --   error "StorableVectorDouble: arguments of different length to .+."
+    -- | otherwise =
+    unsafePerformIO $ do
+      result <- SM.unsafeNew n
+      S.unsafeWith xs $ \xsPtr ->
+        S.unsafeWith ys $ \ysPtr ->
+          SM.unsafeWith result $ \resultPtr ->
+            addVectors
+              n
+              xsPtr
+              ysPtr
+              resultPtr
+      StorableVectorDouble <$> S.freeze result
+    where
+      n  = S.length xs
+  addScaled (StorableVectorDouble xs) c (StorableVectorDouble ys) =
+    -- | S.length xs /= S.length ys =
+    --   error "StorableVectorDouble: arguments of different length to .+."
+    -- | otherwise =
+    unsafePerformIO $ do
+      result <- SM.unsafeNew n
+      S.unsafeWith xs $ \xsPtr ->
+        S.unsafeWith ys $ \ysPtr ->
+          SM.unsafeWith result $ \resultPtr ->
+            addVectorsScaled n xsPtr (getAlignedDouble c) ysPtr resultPtr
+      StorableVectorDouble <$> S.freeze result
+    where
+      n  = S.length xs
   monoFoldr f acc = S.foldr f acc . getStorableVectorDouble
   foldr1 f        = S.foldr1 f . getStorableVectorDouble
   empty           = StorableVectorDouble S.empty
   reverse         = StorableVectorDouble . S.reverse . getStorableVectorDouble
   length          = S.length . getStorableVectorDouble
   replicateM n    = fmap StorableVectorDouble . S.replicateM n
-  dot (StorableVectorDouble xs) (StorableVectorDouble ys) = S.sum $ S.zipWith (*!) xs ys
+  dot (StorableVectorDouble xs) (StorableVectorDouble ys) =
+    -- | S.length xs /= S.length ys =
+    --   error "StorableVectorDouble: arguments of different length to dot"
+    -- | otherwise =
+    AlignedDouble $ unsafePerformIO $
+      S.unsafeWith xs $ \xsPtr ->
+        S.unsafeWith ys $ \ysPtr ->
+          dotProduct (S.length xs) xsPtr ysPtr
 
 {-# INLINABLE concat #-}
 concat

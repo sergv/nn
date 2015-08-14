@@ -159,3 +159,9 @@ foreign import ccall unsafe "addScaled" addVectorsScaled
   -> Ptr AlignedDouble
   -> Ptr AlignedDouble
   -> IO ()
+
+foreign import ccall unsafe "dot" dotProduct
+  :: Int
+  -> Ptr AlignedDouble
+  -> Ptr AlignedDouble
+  -> IO Double

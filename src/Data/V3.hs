@@ -28,9 +28,9 @@ import Foreign.Storable
 
 data V3 a =
   V3
-    {-# UNPACK #-} !a
-    {-# UNPACK #-} !a
-    {-# UNPACK #-} !a
+    {- # UNPACK #-} !a
+    {- # UNPACK #-} !a
+    {- # UNPACK #-} !a
   deriving (Show, Eq, Ord)
 
 newtype instance U.MVector s (V3 a) =
