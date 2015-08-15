@@ -46,8 +46,8 @@ import Graphics.Rendering.Chart hiding (Vector)
 import Graphics.Rendering.Chart.Backend.Cairo
 
 import Data.Aligned.Double
+import Data.AlignedStorableVector (AlignedStorableVector(..))
 import Data.OpenBlasMatrix (OpenBlasMatrix)
-import Data.StorableVectorDouble (StorableVectorDouble(..))
 import Data.V3 (V3)
 import Data.ConstrainedConvert (Convert)
 import Data.ConstrainedFunctor
@@ -87,7 +87,7 @@ nnHiddenLayersSize = [10, 10]
 
 mkOpenBlasMatrixNN
   :: (Applicative m, MonadRandom m)
-  => m (NG.NN OpenBlasMatrix StorableVectorDouble HyperbolicTangent Nonlinear AlignedDouble)
+  => m (NG.NN OpenBlasMatrix AlignedStorableVector HyperbolicTangent Nonlinear AlignedDouble)
 mkOpenBlasMatrixNN = NG.makeNN 1 nnHiddenLayersSize 1 (AlignedDouble <$> sample stdNormal)
 
 main :: IO ()
@@ -97,11 +97,11 @@ main = do
   where
     errInfo = ErrInfo 1e-5 1e-8
 
-    openBlasMatrixDataset :: Vector (StorableVectorDouble AlignedDouble, StorableVectorDouble AlignedDouble)
+    openBlasMatrixDataset :: Vector (AlignedStorableVector AlignedDouble, AlignedStorableVector AlignedDouble)
     openBlasMatrixDataset =
-      V.map (mkStorableVectorDouble *** mkStorableVectorDouble) trainDataset
+      V.map (mkAlignedStorableVector *** mkAlignedStorableVector) trainDataset
 
-    mkStorableVectorDouble = VC.fromList . V.toList . V.map AlignedDouble
+    mkAlignedStorableVector = VC.fromList . V.toList . V.map AlignedDouble
 
     -- trainDataset = xorDataset
     -- xorDataset :: Vector (Vector Double, Vector Double)

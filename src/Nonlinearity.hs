@@ -31,7 +31,7 @@ class Nonlinearity n where
   nonlinearity :: (Floating a) => nn n o b -> a -> a
   -- compute nonlinearity and it's derivative at the same point
   nonlinearityDeriv
-    :: (Floating a, Show a)
+    :: (Floating a)
     => nn n o b -- ^ proxy neural network
     -> a        -- ^ input
     -> a        -- ^ derivative

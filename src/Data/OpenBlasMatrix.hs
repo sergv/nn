@@ -36,14 +36,14 @@ import Text.PrettyPrint.Leijen.Text (Pretty(..), Doc)
 import qualified Text.PrettyPrint.Leijen.Text as PP
 import System.IO.Unsafe
 
-import Data.Aligned.Double
+import Data.Aligned
+import Data.AlignedStorableVector (AlignedStorableVector(..))
+import qualified Data.AlignedStorableVector as ASV
 import Data.ConstrainedConvert (Convert)
 import qualified Data.ConstrainedConvert as Conv
 import Data.ConstrainedFunctor
-import Data.OpenBlasMatrix.Foreign
+import Data.OpenBlasEnums
 import Data.StorableMatrixWithTranspose (StorableMatrixWithTranspose(..))
-import Data.StorableVectorDouble (StorableVectorDouble(..))
-import qualified Data.StorableVectorDouble as SVD
 import Data.MatrixClass
 import qualified Data.VectClass as VC
 import Data.Zippable
@@ -52,58 +52,54 @@ import Util
 data OpenBlasMatrix a = OpenBlasMatrix
   { obmRows    :: {-# UNPACK #-} !Int
   , obmColumns :: {-# UNPACK #-} !Int
-  , obmData    :: !(S.Vector a)
-  -- | Deliberately left non-strict in order to not pay cost if
-  -- no transpose operations were applied.
-  , obmDataT   :: S.Vector a
+  , _obmData   :: !(S.Vector a)
   }
   deriving (Show, Eq, Ord)
 
-unboxedMatrixWithTransposeToList :: (ElemConstraints IsAlignedDoubleConstraint a) => OpenBlasMatrix a -> [[a]]
-unboxedMatrixWithTransposeToList (OpenBlasMatrix _ cols xs _) = takeBy cols $ VC.toList xs
+unboxedMatrixWithTransposeToList :: (ElemConstraints AlignedConstraint a) => OpenBlasMatrix a -> [[a]]
+unboxedMatrixWithTransposeToList (OpenBlasMatrix _ cols xs) = takeBy cols $ VC.toList xs
 
-instance (ElemConstraints IsAlignedDoubleConstraint a, Pretty a) => Pretty (OpenBlasMatrix a) where
-  pretty um@(OpenBlasMatrix rows cols _ _) =
-    "Matrix " <> PP.int rows <> "x" <> PP.int cols <> " (double)" PP.<$>
+instance (ElemConstraints AlignedConstraint a, Pretty a) => Pretty (OpenBlasMatrix a) where
+  pretty um@(OpenBlasMatrix rows cols _) =
+    "Matrix " <> PP.int rows <> "x" <> PP.int cols PP.<$>
     PP.vsep (L.map showRow $ unboxedMatrixWithTransposeToList um)
     where
       showRow :: [a] -> Doc
       showRow = PP.hcat . PP.punctuate PP.comma . L.map pretty
 
-instance (ElemConstraints IsAlignedDoubleConstraint a) => NFData (OpenBlasMatrix a) where
-  rnf (OpenBlasMatrix rows cols xs ys) = rnf rows `seq` rnf cols `seq` rnf xs `seq` rnf ys
+instance (ElemConstraints AlignedConstraint a) => NFData (OpenBlasMatrix a) where
+  rnf (OpenBlasMatrix rows cols xs) = rnf rows `seq` rnf cols `seq` rnf xs
 
-instance ConstrainedFunctor IsAlignedDoubleConstraint OpenBlasMatrix where
+instance ConstrainedFunctor AlignedConstraint OpenBlasMatrix where
   {-# INLINABLE cfmap #-}
-  cfmap f (OpenBlasMatrix rows cols xs _) =
-    mkMatrixWithTranspose rows cols $ cfmap f xs
+  cfmap f (OpenBlasMatrix rows cols xs) = OpenBlasMatrix rows cols $ cfmap f xs
 
-instance Zippable IsAlignedDoubleConstraint OpenBlasMatrix where
+instance Zippable AlignedConstraint OpenBlasMatrix where
   {-# INLINABLE zipWith  #-}
   {-# INLINABLE zipWith3 #-}
   {-# INLINABLE zipWith4 #-}
-  zipWith f (OpenBlasMatrix xRows xCols xs _) (OpenBlasMatrix yRows yCols ys _)
+  zipWith f (OpenBlasMatrix xRows xCols xs) (OpenBlasMatrix yRows yCols ys)
     | xRows == yRows && xCols == yCols =
-      mkMatrixWithTranspose xRows xCols $ zipWith f xs ys
+      OpenBlasMatrix xRows xCols $ zipWith f xs ys
     | otherwise = error "OpenBlasMatrix.zipWith: cannot zip matrices of different shapes"
-  zipWith3 f (OpenBlasMatrix xRows xCols xs _) (OpenBlasMatrix yRows yCols ys _) (OpenBlasMatrix zRows zCols zs _)
+  zipWith3 f (OpenBlasMatrix xRows xCols xs) (OpenBlasMatrix yRows yCols ys) (OpenBlasMatrix zRows zCols zs)
     | xRows == yRows && yRows == zRows && xCols == yCols && yCols == zCols =
-      mkMatrixWithTranspose xRows xCols $ zipWith3 f xs ys zs
+      OpenBlasMatrix xRows xCols $ zipWith3 f xs ys zs
     | otherwise = error "OpenBlasMatrix.zipWith3: cannot zip matrices of different shapes"
-  zipWith4 f (OpenBlasMatrix xRows xCols xs _) (OpenBlasMatrix yRows yCols ys _) (OpenBlasMatrix zRows zCols zs _) (OpenBlasMatrix wRows wCols ws _)
+  zipWith4 f (OpenBlasMatrix xRows xCols xs) (OpenBlasMatrix yRows yCols ys) (OpenBlasMatrix zRows zCols zs) (OpenBlasMatrix wRows wCols ws)
     | xRows == yRows && yRows == zRows && zRows == wRows && xCols == yCols && yCols == zCols && zCols == wCols =
-      mkMatrixWithTranspose xRows xCols $ zipWith4 f xs ys zs ws
+      OpenBlasMatrix xRows xCols $ zipWith4 f xs ys zs ws
     | otherwise = error "OpenBlasMatrix.zipWith4: cannot zip matrices of different shapes"
 
-instance Convert IsAlignedDoubleConstraint StorableConstraint OpenBlasMatrix StorableMatrixWithTranspose where
+instance Convert AlignedConstraint StorableConstraint OpenBlasMatrix StorableMatrixWithTranspose where
   {-# INLINABLE convertTo   #-}
   {-# INLINABLE convertFrom #-}
-  convertTo (OpenBlasMatrix wRows wCols ws ws') =
-    StorableMatrixWithTranspose wRows wCols ws ws'
-  convertFrom (StorableMatrixWithTranspose wRows wCols ws ws') =
-    OpenBlasMatrix wRows wCols ws ws'
+  convertTo (OpenBlasMatrix wRows wCols ws) =
+    StorableMatrixWithTranspose wRows wCols ws (error "transpose")
+  convertFrom (StorableMatrixWithTranspose wRows wCols ws _) =
+    OpenBlasMatrix wRows wCols ws
 
-instance Matrix IsAlignedDoubleConstraint OpenBlasMatrix StorableVectorDouble where
+instance Matrix AlignedConstraint OpenBlasMatrix AlignedStorableVector where
   {-# INLINABLE rows         #-}
   {-# INLINABLE columns      #-}
   {-# INLINABLE outerProduct #-}
@@ -117,41 +113,41 @@ instance Matrix IsAlignedDoubleConstraint OpenBlasMatrix StorableVectorDouble wh
     error "OpenBlasMatrix.fromList: cannot create PureMatrix from empty list of rows"
   fromList wss@(ws:_)
     | cols /= 0 && all (== cols) (L.map length wss) =
-      mkMatrixWithTranspose rows cols matrixData
+      OpenBlasMatrix rows cols matrixData
     | otherwise =
       error $ "OpenBlasMatrix.fromList: cannot create PureMatrix from list " ++ show wss
     where
       rows        = length wss
       cols        = length ws
       matrixData  = VC.fromList $ L.concat wss
-  toList (OpenBlasMatrix _ cols xs _) = takeBy cols $ VC.toList xs
+  toList (OpenBlasMatrix _ cols xs) = takeBy cols $ VC.toList xs
   rows    = obmRows
   columns = obmColumns
   replicateM rows cols action =
-    mkMatrixWithTranspose rows cols <$> VC.replicateM (rows *! cols) action
+    OpenBlasMatrix rows cols <$> VC.replicateM (rows *! cols) action
   outerProduct columnVec rowVec =
-    -- mkMatrixWithTranspose rows cols matrixData
+    -- OpenBlasMatrix rows cols matrixData
     -- where
     --   rows  = VC.length columnVec
     --   cols  = VC.length rowVec
-    --   matrixData = S.concatMap (\c -> getStorableVectorDouble $ cfmap (c *!) rowVec) $ getStorableVectorDouble columnVec
+    --   matrixData = S.concatMap (\c -> getAlignedStorableVector $ cfmap (c *!) rowVec) $ getAlignedStorableVector columnVec
     unsafePerformIO $ do
       matrixData <- SM.replicate (rows *! cols) 0
-      SVD.unsafeWith columnVec $ \columnVecPtr ->
-        SVD.unsafeWith rowVec $ \rowVecPtr ->
+      ASV.unsafeWith columnVec $ \columnVecPtr ->
+        ASV.unsafeWith rowVec $ \rowVecPtr ->
           SM.unsafeWith matrixData $ \resultPtr ->
-            dger
+            ger
               rowMajorOrder
               rows'
               cols'
-              1.0
+              1
               columnVecPtr
               incx
               rowVecPtr
               incy
               resultPtr
               cols'
-      mkMatrixWithTranspose rows cols <$> S.freeze matrixData
+      OpenBlasMatrix rows cols <$> S.freeze matrixData
     where
       rows  = VC.length columnVec
       cols  = VC.length rowVec
@@ -159,13 +155,13 @@ instance Matrix IsAlignedDoubleConstraint OpenBlasMatrix StorableVectorDouble wh
       cols' = Size $ fromIntegral cols
       incx  = BlasInt 1
       incy  = incx
-  vecMulRight (OpenBlasMatrix rows cols xs _) ys =
+  vecMulRight (OpenBlasMatrix rows cols xs) ys =
     unsafePerformIO $ do
       zs <- SM.unsafeNew rows
       S.unsafeWith xs $ \matrixPtr ->
-        SVD.unsafeWith ys $ \vectorPtr ->
+        ASV.unsafeWith ys $ \vectorPtr ->
           SM.unsafeWith zs $ \resultPtr ->
-            dgemv
+            gemv
               rowMajorOrder
               noTranspose
               rows'     -- m
@@ -178,15 +174,15 @@ instance Matrix IsAlignedDoubleConstraint OpenBlasMatrix StorableVectorDouble wh
               0         -- beta
               resultPtr -- y
               incy      -- incy
-      StorableVectorDouble <$> S.freeze zs
+      AlignedStorableVector <$> S.freeze zs
     where
       rows' = Size $ fromIntegral rows
       cols' = Size $ fromIntegral cols
       incx  = BlasInt 1
       incy  = incx
-  transpose (OpenBlasMatrix rows cols xs xsT) =
-    OpenBlasMatrix cols rows xsT xs
-  matrixMult (OpenBlasMatrix xRows xCols xs _) (OpenBlasMatrix _ yCols ys _) =
+  transpose (OpenBlasMatrix rows cols xs) =
+    OpenBlasMatrix cols rows $ transposeMatrixData rows cols xs
+  matrixMult (OpenBlasMatrix xRows xCols xs) (OpenBlasMatrix _ yCols ys) =
     -- -- This check is needed for optimization of using VC.foldr1 instead of
     -- -- VC.monoFoldr. Also it's somewhat meaningless to have matrices with any
     -- -- dimension equal to zero.
@@ -202,7 +198,7 @@ instance Matrix IsAlignedDoubleConstraint OpenBlasMatrix StorableVectorDouble wh
       S.unsafeWith xs $ \leftMatrixPtr ->
         S.unsafeWith ys $ \rightMatrixPtr ->
           SM.unsafeWith zs $ \resultPtr ->
-            dgemm
+            gemm
               rowMajorOrder
               noTranspose    -- TransA
               noTranspose    -- TransB
@@ -217,12 +213,12 @@ instance Matrix IsAlignedDoubleConstraint OpenBlasMatrix StorableVectorDouble wh
               0              -- beta
               resultPtr      -- C
               yCols'         -- ldc
-      mkMatrixWithTranspose xRows yCols <$> S.freeze zs
+      OpenBlasMatrix xRows yCols <$> S.freeze zs
     where
       xRows' = Size $ fromIntegral xRows
       yCols' = Size $ fromIntegral yCols
       xCols' = Size $ fromIntegral xCols
-  (|+|) _left@(OpenBlasMatrix xRows xCols xs _) _right@(OpenBlasMatrix _yRows _yCols ys _) =
+  (|+|) _left@(OpenBlasMatrix xRows xCols xs) _right@(OpenBlasMatrix _yRows _yCols ys) =
     -- | xRows /= yRows || xCols /= yCols =
     --   error $ "Cannot add matrices of different size: " ++ showMatrixSize left ++
     --     " and " ++ showMatrixSize right
@@ -237,41 +233,41 @@ instance Matrix IsAlignedDoubleConstraint OpenBlasMatrix StorableVectorDouble wh
               leftMatrixPtr
               rightMatrixPtr
               resultPtr
-      mkMatrixWithTranspose xRows xCols <$> S.freeze zs
+      OpenBlasMatrix xRows xCols <$> S.freeze zs
     where
       size = xRows * xCols
-  addScaled _left@(OpenBlasMatrix xRows xCols xs _) c _right@(OpenBlasMatrix _yRows _yCols ys _) =
+  addScaled _left@(OpenBlasMatrix xRows xCols xs) c _right@(OpenBlasMatrix _yRows _yCols ys) =
     -- | xRows /= yRows || xCols /= yCols =
     --   error $ "Cannot add matrices of different size: " ++ showMatrixSize left ++
     --     " and " ++ showMatrixSize right
     -- | otherwise =
     unsafePerformIO $ do
-      (zs :: SM.IOVector AlignedDouble) <- SM.unsafeNew size
+      zs <- SM.unsafeNew size
       S.unsafeWith xs $ \leftMatrixPtr ->
         S.unsafeWith ys $ \rightMatrixPtr ->
           SM.unsafeWith zs $ \resultPtr ->
             addVectorsScaled
               size
               leftMatrixPtr
-              (getAlignedDouble c)
+              c
               rightMatrixPtr
               resultPtr
-      mkMatrixWithTranspose xRows xCols <$> S.freeze zs
+      OpenBlasMatrix xRows xCols <$> S.freeze zs
     where
       size = xRows * xCols
     -- OpenBlasMatrix xRows xCols (zipWith f xs ys) (zipWith f xsT ysT)
     --   where
     --     f x y = x +! c *! y
-  sumColumns (OpenBlasMatrix rows cols xs _) =
+  sumColumns (OpenBlasMatrix rows cols xs) =
     VC.fromList $ cfmap VC.sum $ svecTakeBy rows cols xs
-  sum (OpenBlasMatrix _ _ xs _) = VC.sum xs
-  matrixMultByTransposedLeft (OpenBlasMatrix xRows xCols xs _) (OpenBlasMatrix _ yCols ys _) =
+  sum (OpenBlasMatrix _ _ xs) = VC.sum xs
+  matrixMultByTransposedLeft (OpenBlasMatrix xRows xCols xs) (OpenBlasMatrix _ yCols ys) =
     unsafePerformIO $ do
       zs <- SM.unsafeNew (xCols * yCols)
       S.unsafeWith xs $ \leftMatrixPtr ->
         S.unsafeWith ys $ \rightMatrixPtr ->
           SM.unsafeWith zs $ \resultPtr ->
-            dgemm
+            gemm
               rowMajorOrder
               transposed     -- TransA
               noTranspose    -- TransB
@@ -286,18 +282,18 @@ instance Matrix IsAlignedDoubleConstraint OpenBlasMatrix StorableVectorDouble wh
               0              -- beta
               resultPtr      -- C
               yCols'         -- ldc
-      mkMatrixWithTranspose xCols yCols <$> S.freeze zs
+      OpenBlasMatrix xCols yCols <$> S.freeze zs
     where
       xRows' = Size $ fromIntegral xRows
       yCols' = Size $ fromIntegral yCols
       xCols' = Size $ fromIntegral xCols
-  matrixMultByTransposedRight (OpenBlasMatrix xRows xCols xs _) (OpenBlasMatrix yRows yCols ys _) =
+  matrixMultByTransposedRight (OpenBlasMatrix xRows xCols xs) (OpenBlasMatrix yRows yCols ys) =
     unsafePerformIO $ do
       zs <- SM.unsafeNew (xRows * yRows)
       S.unsafeWith xs $ \leftMatrixPtr ->
         S.unsafeWith ys $ \rightMatrixPtr ->
           SM.unsafeWith zs $ \resultPtr ->
-            dgemm
+            gemm
               rowMajorOrder
               noTranspose    -- TransA
               transposed     -- TransB
@@ -312,34 +308,19 @@ instance Matrix IsAlignedDoubleConstraint OpenBlasMatrix StorableVectorDouble wh
               0              -- beta
               resultPtr      -- C
               yRows'         -- ldc
-      mkMatrixWithTranspose xRows yRows <$> S.freeze zs
+      OpenBlasMatrix xRows yRows <$> S.freeze zs
     where
       xRows' = Size $ fromIntegral xRows
       xCols' = Size $ fromIntegral xCols
       yRows' = Size $ fromIntegral yRows
       yCols' = Size $ fromIntegral yCols
-  normL2Square (OpenBlasMatrix _ _ xs _) = VC.dot xs' xs'
+  normL2Square (OpenBlasMatrix _ _ xs) = VC.dot xs' xs'
     where
-      xs' = StorableVectorDouble xs
-
-{-# INLINABLE mkMatrixWithTranspose #-}
-mkMatrixWithTranspose
-  :: (ElemConstraints IsAlignedDoubleConstraint a)
-  => Int
-  -> Int
-  -> S.Vector a
-  -> OpenBlasMatrix a
-mkMatrixWithTranspose rows cols matrixData =
-  OpenBlasMatrix
-    { obmRows    = rows
-    , obmColumns = cols
-    , obmData    = matrixData
-    , obmDataT   = transposeMatrixData rows cols matrixData
-    }
+      xs' = AlignedStorableVector xs
 
 {-# INLINABLE transposeMatrixData #-}
 transposeMatrixData
-  :: (ElemConstraints IsAlignedDoubleConstraint a)
+  :: (ElemConstraints AlignedConstraint a)
   => Int
   -> Int
   -> S.Vector a
@@ -353,7 +334,7 @@ transposeMatrixData rows cols xs =
 
 {-# INLINABLE svecTakeBy #-}
 svecTakeBy
-  :: (ElemConstraints IsAlignedDoubleConstraint a)
+  :: (ElemConstraints AlignedConstraint a)
   => Int
   -> Int
   -> S.Vector a

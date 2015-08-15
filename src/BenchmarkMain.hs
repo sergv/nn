@@ -34,9 +34,10 @@ import Data.Random.Source (MonadRandom)
 import Data.Random.Source.PureMT (PureMT, pureMT)
 
 import Data.Aligned.Double
+import Data.Aligned.Float
+import Data.AlignedStorableVector (AlignedStorableVector(..))
 import Data.OpenBlasMatrix (OpenBlasMatrix)
 import Data.PureMatrix (PureMatrix)
-import Data.StorableVectorDouble (StorableVectorDouble(..))
 import Data.UnboxMatrix (UnboxMatrix)
 import Data.UnboxMatrixWithTranspose (UnboxMatrixWithTranspose)
 import qualified Data.VectClass as VC
@@ -73,10 +74,14 @@ mkUnboxMatrixWithTransposeNN
   :: (Applicative m, MonadRandom m)
   => m (NG.NN UnboxMatrixWithTranspose U.Vector HyperbolicTangent Nonlinear Double)
 mkUnboxMatrixWithTransposeNN = NG.makeNN 1 nnHiddenLayersSize 1 (sample stdNormal)
-mkOpenBlasMatrixNN
+mkOpenBlasMatrixDoubleNN
   :: (Applicative m, MonadRandom m)
-  => m (NG.NN OpenBlasMatrix StorableVectorDouble HyperbolicTangent Nonlinear AlignedDouble)
-mkOpenBlasMatrixNN = NG.makeNN 1 nnHiddenLayersSize 1 (AlignedDouble <$> sample stdNormal)
+  => m (NG.NN OpenBlasMatrix AlignedStorableVector HyperbolicTangent Nonlinear AlignedDouble)
+mkOpenBlasMatrixDoubleNN = NG.makeNN 1 nnHiddenLayersSize 1 (AlignedDouble <$> sample stdNormal)
+mkOpenBlasMatrixFloatNN
+  :: (Applicative m, MonadRandom m)
+  => m (NG.NN OpenBlasMatrix AlignedStorableVector HyperbolicTangent Nonlinear AlignedFloat)
+mkOpenBlasMatrixFloatNN = NG.makeNN 1 nnHiddenLayersSize 1 (AlignedFloat <$> sample stdNormal)
 
 main :: IO ()
 main = do
@@ -106,31 +111,46 @@ main = do
                Double)
              Double
       rpropDataGUnboxMatrixWithTranspose = rprop standardDeltaInfo nnGUnboxMatrixWithTranspose unboxMatrixDataset
-  let openBlasMatrixDataset :: Vector (StorableVectorDouble AlignedDouble, StorableVectorDouble AlignedDouble)
-      openBlasMatrixDataset = V.map (VC.fromList . V.toList . V.map AlignedDouble *** VC.fromList . V.toList . VC.map AlignedDouble) trainDataset
-      nnGOpenBlasMatrix = evalState mkOpenBlasMatrixNN mt
-      rpropDataGOpenBlasMatrix
+  let openBlasMatrixDoubleDataset :: Vector (AlignedStorableVector AlignedDouble, AlignedStorableVector AlignedDouble)
+      openBlasMatrixDoubleDataset = V.map (VC.fromList . V.toList . V.map AlignedDouble *** VC.fromList . V.toList . VC.map AlignedDouble) trainDataset
+      nnGOpenBlasDoubleMatrix = evalState mkOpenBlasMatrixDoubleNN mt
+      rpropDataGOpenBlasDoubleMatrix
         :: IterateData
-             (NG.NN OpenBlasMatrix StorableVectorDouble HyperbolicTangent Nonlinear)
+             (NG.NN OpenBlasMatrix AlignedStorableVector HyperbolicTangent Nonlinear)
              (RPropState
-               (NG.NN OpenBlasMatrix StorableVectorDouble HyperbolicTangent Nonlinear)
+               (NG.NN OpenBlasMatrix AlignedStorableVector HyperbolicTangent Nonlinear)
                AlignedDouble)
              AlignedDouble
-      rpropDataGOpenBlasMatrix = rprop standardDeltaInfo nnGOpenBlasMatrix openBlasMatrixDataset
+      rpropDataGOpenBlasDoubleMatrix = rprop standardDeltaInfo nnGOpenBlasDoubleMatrix openBlasMatrixDoubleDataset
+  let openBlasMatrixFloatDataset :: Vector (AlignedStorableVector AlignedFloat, AlignedStorableVector AlignedFloat)
+      openBlasMatrixFloatDataset = V.map (VC.fromList . V.toList . V.map (AlignedFloat . realToFrac) *** VC.fromList . V.toList . VC.map (AlignedFloat . realToFrac)) trainDataset
+      nnGOpenBlasFloatMatrix = evalState mkOpenBlasMatrixFloatNN mt
+      rpropDataGOpenBlasFloatMatrix
+        :: IterateData
+             (NG.NN OpenBlasMatrix AlignedStorableVector HyperbolicTangent Nonlinear)
+             (RPropState
+               (NG.NN OpenBlasMatrix AlignedStorableVector HyperbolicTangent Nonlinear)
+               AlignedFloat)
+             AlignedFloat
+      rpropDataGOpenBlasFloatMatrix = rprop standardDeltaInfo nnGOpenBlasFloatMatrix openBlasMatrixFloatDataset
 
   defaultMainWith criterionConfig [
-     bench "rprop specific" $
-     nf (constantUpdates rpropData iterations) nn
-    , bench "rprop generic - Vector" $
-      nf (constantUpdates rpropDataGVec iterations) nnGVec
-    , bench "rprop generic - List" $
-      nf (constantUpdates rpropDataGList iterations) nnGList
-    , bench "rprop generic - UnboxMatrix" $
-      nf (constantUpdates rpropDataGUnboxMatrix iterations) nnGUnboxMatrix
-    , bench "rprop generic - UnboxMatrixWithTranspose" $
-      nf (constantUpdates rpropDataGUnboxMatrixWithTranspose iterations) nnGUnboxMatrixWithTranspose
-    , bench "rprop generic - OpenBlasMatrix" $
-      nf (constantUpdates rpropDataGOpenBlasMatrix iterations) nnGOpenBlasMatrix
+     -- bench "rprop specific" $
+     -- nf (constantUpdates rpropData iterations) nn
+    -- , bench "rprop generic - Vector" $
+    --   nf (constantUpdates rpropDataGVec iterations) nnGVec
+    -- , bench "rprop generic - List" $
+    --   nf (constantUpdates rpropDataGList iterations) nnGList
+    -- , bench "rprop generic - UnboxMatrix" $
+    --   nf (constantUpdates rpropDataGUnboxMatrix iterations) nnGUnboxMatrix
+    -- ,
+      -- bench "rprop generic - UnboxMatrixWithTranspose" $
+      -- nf (constantUpdates rpropDataGUnboxMatrixWithTranspose iterations) nnGUnboxMatrixWithTranspose
+    -- ,
+      bench "rprop generic - OpenBlasMatrix, Double" $
+      nf (constantUpdates rpropDataGOpenBlasDoubleMatrix iterations) nnGOpenBlasDoubleMatrix
+    -- , bench "rprop generic - OpenBlasMatrix, Float" $
+    --   nf (constantUpdates rpropDataGOpenBlasFloatMatrix iterations) nnGOpenBlasFloatMatrix
     -- , bench "rprop unboxed tuple" $ nf (rprop' errInfo standardDeltaInfo nn) trainDataset
     ]
   where

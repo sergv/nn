@@ -72,11 +72,10 @@ instance ( Nonlinearity n
          , OutputType o n
          , MC.Matrix k w v
          , VC.Vect k v
-         , Floating a
          , ConstrainedFunctor k w
          , ConstrainedFunctor k v
          , Zippable k w
-
+         , Floating a
          , Show a
          ) => NeuralNetwork k (G.NN w v n o) v a where
   forwardPropagate   = G.forwardPropagate

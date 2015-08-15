@@ -11,15 +11,19 @@ build-type:          Simple
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     Data.Aligned.Double
+  exposed-modules:     Data.Aligned
+                       Data.Aligned.Double
+                       Data.Aligned.Double.Foreign
+                       Data.Aligned.Float
+                       Data.Aligned.Float.Foreign
+                       Data.AlignedStorableVector
                        Data.ConstrainedConvert
                        Data.ConstrainedFunctor
                        Data.MatrixDouble
+                       Data.OpenBlasEnums
                        Data.OpenBlasMatrix
-                       Data.OpenBlasMatrix.Foreign
                        Data.PureMatrix
                        Data.StorableMatrixWithTranspose
-                       Data.StorableVectorDouble
                        Data.V3
                        Data.VectClass
                        Data.VectorDouble

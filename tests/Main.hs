@@ -28,11 +28,11 @@ import Text.PrettyPrint.Leijen.Text (Pretty(..))
 import qualified Text.PrettyPrint.Leijen.Text as PP
 
 import Data.Aligned.Double
+import Data.AlignedStorableVector (AlignedStorableVector)
+import qualified Data.AlignedStorableVector as ASV
 import Data.MatrixDouble (MatrixDouble)
 import Data.OpenBlasMatrix (OpenBlasMatrix)
 import Data.PureMatrix (PureMatrix)
-import Data.StorableVectorDouble (StorableVectorDouble)
-import qualified Data.StorableVectorDouble as SVD
 import Data.VectorDouble (VectorDouble)
 import Data.UnboxMatrix (UnboxMatrix)
 import Data.UnboxMatrixWithTranspose (UnboxMatrixWithTranspose)
@@ -284,7 +284,7 @@ compareGradientsFromDifferentSources name mkInput inputLayerSize hiddenLayers fi
           (mkVectorInput mkInput)
           (makeSpecificNN inputLayerSize hiddenLayers finalLayerSize)
           S.backprop
-          (mkStorableVectorDoubleInput mkInput)
+          (mkAlignedStorableVectorInput mkInput)
           (makeOpenBlasMatrixNN inputLayerSize hiddenLayers finalLayerSize)
           (G.backprop chunkSize)
       -- , compareNNGradients
@@ -319,7 +319,7 @@ makeUnboxMatrixNN inputLayerSize hiddenLayerSizes finalLayerSize =
 makeUnboxMatrixWithTransposeNN :: Int -> [Int] -> Int -> State PureMT (G.NN UnboxMatrixWithTranspose U.Vector HyperbolicTangent Nonlinear Double)
 makeUnboxMatrixWithTransposeNN inputLayerSize hiddenLayerSizes finalLayerSize =
   G.makeNN inputLayerSize hiddenLayerSizes finalLayerSize (sample stdNormal)
-makeOpenBlasMatrixNN :: Int -> [Int] -> Int -> State PureMT (G.NN OpenBlasMatrix StorableVectorDouble HyperbolicTangent Nonlinear AlignedDouble)
+makeOpenBlasMatrixNN :: Int -> [Int] -> Int -> State PureMT (G.NN OpenBlasMatrix AlignedStorableVector HyperbolicTangent Nonlinear AlignedDouble)
 makeOpenBlasMatrixNN inputLayerSize hiddenLayerSizes finalLayerSize =
   G.makeNN inputLayerSize hiddenLayerSizes finalLayerSize (AlignedDouble <$> sample stdNormal)
 
@@ -338,11 +338,11 @@ mkUnboxedVectorInput
   -> Double -> (U.Vector Double, U.Vector Double)
 mkUnboxedVectorInput mkInput = (U.fromList *** U.fromList) . mkInput
 
-mkStorableVectorDoubleInput
+mkAlignedStorableVectorInput
   :: (Double -> ([Double], [Double]))
-  -> Double -> (StorableVectorDouble AlignedDouble, StorableVectorDouble AlignedDouble)
-mkStorableVectorDoubleInput mkInput =
-  (SVD.fromList *** SVD.fromList) .
+  -> Double -> (AlignedStorableVector AlignedDouble, AlignedStorableVector AlignedDouble)
+mkAlignedStorableVectorInput mkInput =
+  (ASV.fromList *** ASV.fromList) .
   (map AlignedDouble *** map AlignedDouble) .
   mkInput
 

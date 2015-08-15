@@ -22,7 +22,8 @@ import Test.Tasty
 import Test.Tasty.HUnit
 
 import Data.Aligned.Double (AlignedDouble)
-import Data.StorableVectorDouble (StorableVectorDouble)
+import Data.Aligned.Float (AlignedFloat)
+import Data.AlignedStorableVector (AlignedStorableVector)
 import Data.ConstrainedFunctor
 import Data.VectClass (Vect)
 import qualified Data.VectClass as VC
@@ -30,7 +31,8 @@ import qualified Data.VectClass as VC
 tests :: TestTree
 tests = testGroup "Vector tests"
   [ vectorTests "Data.Vector" vectorProxy intProxy
-  , vectorTests "Data.StorableVectorDouble" storableVectorDoubleProxy alignedDoubleProxy
+  , vectorTests "Data.AlignedStorableVector, Double" alignedStorableVectorProxy alignedDoubleProxy
+  , vectorTests "Data.AlignedStorableVector, Float" alignedStorableVectorProxy alignedFloatProxy
   ]
 
 vectorTests
@@ -60,14 +62,17 @@ vectorTests name _ _ = testGroup name
 intProxy :: Proxy Int
 intProxy = Proxy
 
+alignedFloatProxy :: Proxy AlignedFloat
+alignedFloatProxy = Proxy
+
 alignedDoubleProxy :: Proxy AlignedDouble
 alignedDoubleProxy = Proxy
 
 vectorProxy :: Proxy Vector
 vectorProxy = Proxy
 
-storableVectorDoubleProxy :: Proxy StorableVectorDouble
-storableVectorDoubleProxy = Proxy
+alignedStorableVectorProxy :: Proxy AlignedStorableVector
+alignedStorableVectorProxy = Proxy
 
 ivec :: (ElemConstraints k a, Vect k v) => [a] -> v a
 ivec = VC.fromList

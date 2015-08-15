@@ -46,8 +46,6 @@ import qualified Text.PrettyPrint.Leijen.Text as PP
 import Data.Random.Source.PureMT ()
 import Numeric.AD hiding (grad, Grad)
 
-import Data.UnboxMatrix (UnboxMatrix)
-import Data.UnboxMatrixWithTranspose (UnboxMatrixWithTranspose)
 import Data.ConstrainedConvert (Convert)
 import qualified Data.ConstrainedConvert as Conv
 import Data.ConstrainedFunctor

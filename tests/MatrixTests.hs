@@ -21,6 +21,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 
 import Data.Aligned.Double
+import Data.Aligned.Float
 import Data.MatrixDouble (MatrixDouble)
 import Data.OpenBlasMatrix (OpenBlasMatrix)
 import Data.PureMatrix (PureMatrix)
@@ -38,7 +39,8 @@ tests = testGroup "Matrix tests"
   , matrixTests "MatrixDouble" matrixDoubleProxy doubleProxy
   , matrixTests "UnboxMatrix" unboxMatrixProxy doubleProxy
   , matrixTests "UnboxMatrixWithTranspose" unboxMatrixWithTransposeProxy doubleProxy
-  , matrixTests "OpenBlasMatrix" openBlasMatrixProxy alignedDoubleProxy
+  , matrixTests "OpenBlasMatrix, Double" openBlasMatrixProxy alignedDoubleProxy
+  , matrixTests "OpenBlasMatrix, Float" openBlasMatrixProxy alignedFloatProxy
   ]
 
 matrixTests
@@ -143,6 +145,9 @@ doubleProxy = Proxy
 
 alignedDoubleProxy :: Proxy AlignedDouble
 alignedDoubleProxy = Proxy
+
+alignedFloatProxy :: Proxy AlignedFloat
+alignedFloatProxy = Proxy
 
 pureMatrixProxy :: Proxy (PureMatrix [])
 pureMatrixProxy = Proxy
