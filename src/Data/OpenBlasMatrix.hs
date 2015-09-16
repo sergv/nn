@@ -37,6 +37,7 @@ import qualified Text.PrettyPrint.Leijen.Text as PP
 import System.IO.Unsafe
 
 import Data.Aligned
+import qualified Data.Aligned as Aligned
 import Data.AlignedStorableVector (AlignedStorableVector(..))
 import qualified Data.AlignedStorableVector as ASV
 import Data.ConstrainedConvert (Convert)
@@ -317,6 +318,15 @@ instance Matrix AlignedConstraint OpenBlasMatrix AlignedStorableVector where
   normL2Square (OpenBlasMatrix _ _ xs) = VC.dot xs' xs'
     where
       xs' = AlignedStorableVector xs
+  exp (OpenBlasMatrix rows cols xs) =
+    unsafePerformIO $ do
+      result <- SM.unsafeNew n
+      S.unsafeWith xs $ \xsPtr ->
+        SM.unsafeWith result $ \resultPtr ->
+          Aligned.mapExp n xsPtr resultPtr
+      OpenBlasMatrix rows cols <$> S.freeze result
+    where
+      n = rows *! cols
 
 {-# INLINABLE transposeMatrixData #-}
 transposeMatrixData

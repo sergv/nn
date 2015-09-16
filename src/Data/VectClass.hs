@@ -27,7 +27,7 @@ import Data.Vector (Vector)
 import qualified Data.Vector as V
 import qualified Data.Vector.Storable as S
 import qualified Data.Vector.Unboxed as U
-import Prelude (Num(..), Eq(..), ($), Int, Monad, error, otherwise)
+import Prelude (Num(..), Eq(..), Floating, ($), Int, Monad, error, otherwise)
 import qualified Prelude as P
 
 import Data.ConstrainedFunctor
@@ -61,6 +61,11 @@ class (Zippable k v) => Vect k v | v -> k where
       error "cannot take dot products for vectors of different length"
     | otherwise =
       monoFoldr (+) 0 $ zipWith (*) xs ys
+  exp :: (ElemConstraints k a, Floating a) => v a -> v a
+  default exp
+    :: (ElemConstraints k a, Floating a, ConstrainedFunctor k v)
+    => v a -> v a
+  exp = cfmap P.exp
 
 class TransposableVector k v | v -> k where
   transpose :: (ElemConstraints k a, ElemConstraints k (v a)) => v (v a) -> v (v a)

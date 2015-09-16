@@ -70,14 +70,14 @@ foreign import ccall unsafe "cblas_sgemm" sgemm
   -> IO ()
 
 foreign import ccall unsafe "addf" addVectorsf
-  :: Int
+  :: CUInt
   -> Ptr AlignedFloat
   -> Ptr AlignedFloat
   -> Ptr AlignedFloat
   -> IO ()
 
 foreign import ccall unsafe "addScaledf" addVectorsScaledf
-  :: Int
+  :: CUInt
   -> Ptr AlignedFloat
   -> Float
   -> Ptr AlignedFloat
@@ -85,9 +85,13 @@ foreign import ccall unsafe "addScaledf" addVectorsScaledf
   -> IO ()
 
 foreign import ccall unsafe "dotf" dotProductf
-  :: Int
+  :: CUInt
   -> Ptr AlignedFloat
   -> Ptr AlignedFloat
   -> IO Float
 
-
+foreign import ccall unsafe "map_exp" mapExp
+  :: CUInt
+  -> Ptr AlignedFloat
+  -> Ptr AlignedFloat
+  -> IO ()

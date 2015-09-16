@@ -17,6 +17,7 @@
 module Data.Aligned where
 
 import Foreign (Storable)
+import Foreign.C.Types (CUInt(..))
 import Foreign.Ptr (Ptr)
 
 import Data.OpenBlasEnums
@@ -98,6 +99,12 @@ class (Storable a) => Aligned a where
     -> Ptr a
     -> Ptr a
     -> IO a
+  -- | Input and output must be aligned to 32 bit and must not overlap.
+  mapExp
+    :: Int
+    -> Ptr a -- ^ input
+    -> Ptr a -- ^ output
+    -> IO ()
 
 instance Aligned AlignedFloat where
   {-# INLINABLE gemv             #-}
@@ -112,9 +119,10 @@ instance Aligned AlignedFloat where
     FF.sger ord m n alpha x incx y incy a lda
   gemm ord trans trans' m n k (AlignedFloat alpha) a lda b ldb (AlignedFloat beta) c ldc =
     FF.sgemm ord trans trans' m n k alpha a lda b ldb beta c ldc
-  addVectors = FF.addVectorsf
-  addVectorsScaled n x (AlignedFloat c) y z = FF.addVectorsScaledf n x c y z
-  dotProduct n x y = AlignedFloat <$> FF.dotProductf n x y
+  addVectors n = FF.addVectorsf (cuint n)
+  addVectorsScaled n x (AlignedFloat c) y z = FF.addVectorsScaledf (cuint n) x c y z
+  dotProduct n x y = AlignedFloat <$> FF.dotProductf (cuint n) x y
+  mapExp n x y = FF.mapExp (cuint n) x y
 
 instance Aligned AlignedDouble where
   gemv ord trans m n (AlignedDouble alpha) a lda x incx (AlignedDouble beta) y incy =
@@ -123,6 +131,11 @@ instance Aligned AlignedDouble where
     DF.dger ord m n alpha x incx y incy a lda
   gemm ord trans trans' m n k (AlignedDouble alpha) a lda b ldb (AlignedDouble beta) c ldc =
     DF.dgemm ord trans trans' m n k alpha a lda b ldb beta c ldc
-  addVectors = DF.addVectors
-  addVectorsScaled n x (AlignedDouble c) y z = DF.addVectorsScaled n x c y z
-  dotProduct n x y = AlignedDouble <$> DF.dotProduct n x y
+  addVectors n = DF.addVectors (cuint n)
+  addVectorsScaled n x (AlignedDouble c) y z = DF.addVectorsScaled (cuint n) x c y z
+  dotProduct n x y = AlignedDouble <$> DF.dotProduct (cuint n) x y
+  mapExp n x y = DF.mapExp (cuint n) x y
+
+{-# INLINE cuint #-}
+cuint :: Int -> CUInt
+cuint = CUInt . fromIntegral

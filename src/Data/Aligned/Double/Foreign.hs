@@ -109,14 +109,14 @@ foreign import ccall unsafe "cblas_dgemm" dgemm
   -> IO ()
 
 foreign import ccall unsafe "add" addVectors
-  :: Int
+  :: CUInt
   -> Ptr AlignedDouble
   -> Ptr AlignedDouble
   -> Ptr AlignedDouble
   -> IO ()
 
 foreign import ccall unsafe "addScaled" addVectorsScaled
-  :: Int
+  :: CUInt
   -> Ptr AlignedDouble
   -> Double
   -> Ptr AlignedDouble
@@ -124,8 +124,14 @@ foreign import ccall unsafe "addScaled" addVectorsScaled
   -> IO ()
 
 foreign import ccall unsafe "dot" dotProduct
-  :: Int
+  :: CUInt
   -> Ptr AlignedDouble
   -> Ptr AlignedDouble
   -> IO Double
+
+foreign import ccall unsafe "map_exp" mapExp
+  :: CUInt
+  -> Ptr AlignedDouble
+  -> Ptr AlignedDouble
+  -> IO ()
 

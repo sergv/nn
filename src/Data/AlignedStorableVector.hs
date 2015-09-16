@@ -28,7 +28,7 @@ module Data.AlignedStorableVector
   )
 where
 
-import Prelude hiding (concat, concatMap, zipWith, zipWith3)
+import Prelude hiding (concat, concatMap, zipWith, zipWith3, exp)
 import Control.DeepSeq
 import qualified Data.Vector.Storable as S
 import qualified Data.Vector.Storable.Mutable as SM
@@ -36,7 +36,8 @@ import Foreign (Ptr, Storable)
 import Text.PrettyPrint.Leijen.Text (Pretty(..))
 import System.IO.Unsafe
 
-import Data.Aligned (AlignedConstraint, addVectors, addVectorsScaled, dotProduct)
+import Data.Aligned (AlignedConstraint, addVectors, addVectorsScaled)
+import qualified Data.Aligned as Aligned
 import Data.ConstrainedConvert (Convert)
 import qualified Data.ConstrainedConvert as Conv
 import Data.ConstrainedFunctor
@@ -133,7 +134,16 @@ instance Vect AlignedConstraint AlignedStorableVector where
     unsafePerformIO $
       S.unsafeWith xs $ \xsPtr ->
         S.unsafeWith ys $ \ysPtr ->
-          dotProduct (S.length xs) xsPtr ysPtr
+          Aligned.dotProduct (S.length xs) xsPtr ysPtr
+  exp (AlignedStorableVector xs) =
+    unsafePerformIO $ do
+      result <- SM.unsafeNew n
+      S.unsafeWith xs $ \xsPtr ->
+        SM.unsafeWith result $ \resultPtr ->
+          Aligned.mapExp n xsPtr resultPtr
+      AlignedStorableVector <$> S.freeze result
+    where
+      n = S.length xs
 
 {-# INLINABLE concat #-}
 concat

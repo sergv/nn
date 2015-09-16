@@ -17,11 +17,11 @@
 
 module Data.MatrixClass where
 
-import Prelude hiding (map, sum)
-
 import Data.VectClass (Vect)
 import qualified Data.VectClass as VC
 import Data.ConstrainedFunctor
+import Prelude (Int, String, Monad, Floating, Show(..), Num, (.), ($), (++))
+import qualified Prelude as P
 
 import Util
 
@@ -64,11 +64,16 @@ class (Vect k v) => Matrix k w v | w -> v k where
   default normL2Square
     :: (Matrix k w v, Num a, ConstrainedFunctor k w, ElemConstraints k a)
     => w a -> a
-  normL2Square matr = sum $ cfmap (\x -> x * x) matr
--- normL2Square matr = VC.sum $ vecMulRight matrSquares v
---   where
---     matrSquares = cfmap (\x -> x * x) matr
---     v = VC.replicate (columns matr) 1
+  normL2Square matr = sum $ cfmap (\x -> x *! x) matr
+  -- normL2Square matr = VC.sum $ vecMulRight matrSquares v
+  --   where
+  --     matrSquares = cfmap (\x -> x * x) matr
+  --     v = VC.replicate (columns matr) 1
+  exp :: (ElemConstraints k a, Floating a) => w a -> w a
+  default exp
+    :: (ElemConstraints k a, Floating a, ConstrainedFunctor k w)
+    => w a -> w a
+  exp = cfmap P.exp
 
 showMatrixSize :: (Matrix k w v) => w a -> String
 showMatrixSize x = show (rows x) ++ "x" ++ show (columns x)
