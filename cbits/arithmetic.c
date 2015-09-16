@@ -79,7 +79,7 @@ float dotf(unsigned int n,
         float res[8] FLOAT_ALIGNED;
         _mm256_store_ps(res, result);
 
-        float final_res = res[0] + res[1] + res[2] + res[3];
+        float final_res = res[0] + res[1] + res[2] + res[3] + res[4] + res[5] + res[6] + res[7];
         for (i = m8; i < n; i++) {
                 final_res += xs[i] * ys[i];
         }
