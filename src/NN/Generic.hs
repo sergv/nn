@@ -57,6 +57,11 @@ import Data.Zippable
 import Nonlinearity
 import Util
 
+import Data.Aligned.Double (AlignedDouble)
+import Data.Aligned.Float (AlignedFloat)
+import Data.OpenBlasMatrix (OpenBlasMatrix)
+import Data.AlignedStorableVector (AlignedStorableVector)
+
 -- w - matrix
 -- v - vector
 -- n - nonlinearity type
@@ -75,12 +80,17 @@ deriving instance (Ord (v a), Ord (w a))   => Ord (NN w v n o a)
 instance (NFData (v a), NFData (w a)) => NFData (NN w v n o a) where
   rnf (NN xs fin) = rnf xs `seq` rnf fin
 
-instance (ConstrainedFunctor k v, ConstrainedFunctor k w) => ConstrainedFunctor k (NN w v n o) where
+instance ( ConstrainedFunctor v
+         , ConstrainedFunctor w
+         , ElemConstraints v ~ ElemConstraints w
+         )
+         => ConstrainedFunctor (NN w v n o) where
+  type ElemConstraints (NN w v n o) = ElemConstraints w
   {-# INLINABLE cfmap #-}
   cfmap f (NN layers (finBias, finWeights)) =
     NN (V.map (cfmap f *** cfmap f) layers) (cfmap f finBias, cfmap f finWeights)
 
-instance (Matrix k w v, Zippable k w, Vect k v) => Zippable k (NN w v n o) where
+instance (Matrix w v, Zippable w, Vect v) => Zippable (NN w v n o) where
   {-# INLINABLE zipWith  #-}
   {-# INLINABLE zipWith3 #-}
   {-# INLINABLE zipWith4 #-}
@@ -88,7 +98,12 @@ instance (Matrix k w v, Zippable k w, Vect k v) => Zippable k (NN w v n o) where
   zipWith3 = nnZipWith3
   zipWith4 = nnZipWith4
 
-instance (Convert k k' w w', Convert k k' v v') => Convert k k' (NN w v n o) (NN w' v' n o) where
+instance ( Convert w w'
+         , Convert v v'
+         , ElemConstraints v ~ ElemConstraints w
+         , ElemConstraints v' ~ ElemConstraints w'
+         )
+         => Convert (NN w v n o) (NN w' v' n o) where
   {-# INLINABLE convertTo   #-}
   {-# INLINABLE convertFrom #-}
   convertTo   (NN hiddenLayers finalLayer) =
@@ -101,7 +116,8 @@ instance (Convert k k' w w', Convert k k' v v') => Convert k k' (NN w v n o) (NN
       conv = Conv.convertFrom *** Conv.convertFrom
 
 toWeightList
-  :: forall k w v n o a. (Matrix k w v, Vect k v, ElemConstraints k a)
+  :: forall w v n o a. (Matrix w v, Vect v)
+  => (ElemConstraints v ~ ElemConstraints w, ElemConstraints v a)
   => NN w v n o a
   -> [[[a]]]
 toWeightList (NN hiddenLayers finalLayer) =
@@ -111,10 +127,10 @@ toWeightList (NN hiddenLayers finalLayer) =
     convertLayer (bias, weights) = L.zipWith (:) (VC.toList bias) (MC.toList weights)
 
 nnZipWith
-  :: (Matrix k w v, Zippable k w, Vect k v)
-  => (ElemConstraints k a)
-  => (ElemConstraints k b)
-  => (ElemConstraints k c)
+  :: (Matrix w v, Zippable w, Vect v, ElemConstraints v ~ ElemConstraints w)
+  => (ElemConstraints w a)
+  => (ElemConstraints w b)
+  => (ElemConstraints w c)
   => (a -> b -> c)
   -> NN w v n o a
   -> NN w v n o b
@@ -126,11 +142,12 @@ nnZipWith f (NN xs finX) (NN ys finY) =
     zipLayers (xb, x) (yb, y) = (zipWith f xb yb, zipWith f x y)
 
 nnZipWith3
-  :: (Matrix k w v, Zippable k w, Vect k v)
-  => (ElemConstraints k a)
-  => (ElemConstraints k b)
-  => (ElemConstraints k c)
-  => (ElemConstraints k d)
+  :: (Matrix w v, Zippable w, Vect v)
+  => (ElemConstraints v ~ ElemConstraints w)
+  => (ElemConstraints w a)
+  => (ElemConstraints w b)
+  => (ElemConstraints w c)
+  => (ElemConstraints w d)
   => (a -> b -> c -> d)
   -> NN w v n o a
   -> NN w v n o b
@@ -143,12 +160,13 @@ nnZipWith3 f (NN xs finX) (NN ys finY) (NN zs finZ) =
     zipLayers (xb, x) (yb, y) (zb, z) = (zipWith3 f xb yb zb, zipWith3 f x y z)
 
 nnZipWith4
-  :: (Matrix k w v, Zippable k w, Vect k v)
-  => (ElemConstraints k a)
-  => (ElemConstraints k b)
-  => (ElemConstraints k c)
-  => (ElemConstraints k d)
-  => (ElemConstraints k e)
+  :: (Matrix w v, Zippable w, Vect v)
+  => (ElemConstraints v ~ ElemConstraints w)
+  => (ElemConstraints w a)
+  => (ElemConstraints w b)
+  => (ElemConstraints w c)
+  => (ElemConstraints w d)
+  => (ElemConstraints w e)
   => (a -> b -> c -> d -> e)
   -> NN w v n o a
   -> NN w v n o b
@@ -162,7 +180,8 @@ nnZipWith4 f (NN xs finX) (NN ys finY) (NN zs finZ) (NN ws finW) =
     zipLayers (xb, x) (yb, y) (zb, z) (wb, w) = (zipWith4 f xb yb zb wb, zipWith4 f x y z w)
 
 -- nnZ = nnX + nnY
-add :: (Matrix k w v, Zippable k w, Vect k v, Num a, ElemConstraints k a)
+add :: (Matrix w v, Zippable w, Vect v, Num a)
+    => (ElemConstraints v ~ ElemConstraints w, ElemConstraints w a)
     => NN w v n o a -> NN w v n o a -> NN w v n o a
 add (NN layers final) (NN layers' final') =
   NN (V.zipWith f layers layers')
@@ -172,7 +191,8 @@ add (NN layers final) (NN layers' final') =
 
 -- nnZ = nnX + b * nnY
 addScaled
-  :: (Matrix k w v, Zippable k w, Vect k v, Num a, ElemConstraints k a)
+  :: (Matrix w v, Zippable w, Vect v, Num a)
+  => (ElemConstraints v ~ ElemConstraints w, ElemConstraints w a)
   => NN w v n o a -> a -> NN w v n o a -> NN w v n o a
 -- addScaled nn b addend = nnZipWith (\x y -> x +! b *! y) nn addend
 addScaled (NN layers final) b (NN layers' final') =
@@ -182,7 +202,8 @@ addScaled (NN layers final) b (NN layers' final') =
     f (xs, xss) (ys, yss) = (VC.addScaled xs b ys, MC.addScaled xss b yss)
 
 nnSize
-  :: forall k w v n o a. (Matrix k w v, ConstrainedFunctor k w, Vect k v, Floating a, ElemConstraints k a)
+  :: forall w v n o a. (Matrix w v, ConstrainedFunctor w, Vect v, Floating a)
+  => (ElemConstraints v ~ ElemConstraints w, ElemConstraints w a)
   => NN w v n o a -> a
 nnSize (NN layers fin) =
   sqrt $ V.sum (V.map layerSize layers) + layerSize fin
@@ -191,14 +212,16 @@ nnSize (NN layers fin) =
     layerSize (bias, weightMatrix) = VC.normL2Square bias +! MC.normL2Square weightMatrix
 
 differenceSize
-  :: (Matrix k w v, ConstrainedFunctor k w, Zippable k w)
-  => (Vect k v, Floating a, ElemConstraints k a)
+  :: (Matrix w v, ConstrainedFunctor w, Zippable w)
+  => (Vect v, Floating a)
+  => (ElemConstraints v ~ ElemConstraints w, ElemConstraints w a)
   => NN w v n o a -> NN w v n o a -> a
 differenceSize xs ys = nnSize $ addScaled xs (-1) ys
 
 fromWeightList
-  :: forall m k w v n o a. (MonadError String m, ElemConstraints k a, Show a)
-  => (Matrix k w v, Vect k v)
+  :: forall m w v n o a. (MonadError String m, Show a)
+  => (Matrix w v, Vect v)
+  => (ElemConstraints v ~ ElemConstraints w, ElemConstraints w a)
   => [[[a]]]
   -> m (NN w v n o a)
 fromWeightList []  = throwError "Cannot create neural network from empty list of weights"
@@ -218,8 +241,9 @@ fromWeightList wss = NN <$> (V.fromList <$> mapM convertLayer wss')
         wLen = length w
 
 makeNN
-  :: forall k m n o w v a. (Monad m, Show a)
-  => (Matrix k w v, Vect k v, ElemConstraints k a)
+  :: forall m n o w v a. (Monad m, Show a)
+  => (Matrix w v, Vect v)
+  => (ElemConstraints v ~ ElemConstraints w, ElemConstraints w a)
   => (Nonlinearity n, OutputType o n)
   => Int
   -> [Int]
@@ -231,7 +255,9 @@ makeNN inputLayerSize hiddenLayerSizes finalLayerSize mkElem =
   makeWeightList inputLayerSize hiddenLayerSizes finalLayerSize mkElem
 
 forwardPropagate
-  :: forall k w v a n o. (Matrix k w v, Vect k v, Floating a, Nonlinearity n, OutputType o n, ConstrainedFunctor k v, ElemConstraints k a)
+  :: forall w v a n o. (Matrix w v, Floating a, Nonlinearity n, OutputType o n)
+  => (Vect v, ConstrainedFunctor v)
+  => (ElemConstraints v ~ ElemConstraints w, ElemConstraints w a)
   => NN w v n o a
   -> v a
   -> v a
@@ -245,7 +271,8 @@ forwardPropagate nn@(NN hiddenLayers finalLayer) input =
       cfmap activation $ bias .+. MC.vecMulRight layer prev
 
 targetFunction
-  :: (Matrix k w v, Vect k v, ConstrainedFunctor k v, Floating a, ElemConstraints k a)
+  :: (Matrix w v, Vect v, ConstrainedFunctor v, Floating a)
+  => (ElemConstraints v ~ ElemConstraints w, ElemConstraints w a)
   => (Nonlinearity n, OutputType o n)
   => Vector (v a, v a)
   -> NN w v n o a
@@ -257,8 +284,8 @@ targetFunction dataset nn =
         dataset
 
 targetFunctionGrad
-  :: forall w v n o a. (Matrix NoConstraints w v, Traversable w)
-  => (Vect NoConstraints v, ConstrainedFunctor NoConstraints v, Traversable v)
+  :: forall w v n o a. (Matrix w v, Traversable w, ElemConstraints w ~ IdConstraint)
+  => (Vect v, ConstrainedFunctor v, Traversable v, ElemConstraints v ~ IdConstraint)
   => (Nonlinearity n, OutputType o n)
   => (Floating a)
   => Vector (v a, v a)
@@ -268,7 +295,7 @@ targetFunctionGrad dataset =
   \nn -> second Grad $ grad' (targetFunction' dataset) nn
   where
     targetFunction'
-      :: (Floating b, Mode b, ElemConstraints NoConstraints b)
+      :: (Floating b, Mode b, ElemConstraints v b)
       => Vector (v (Scalar b), v (Scalar b))
       -> NN w v n o b
       -> b
@@ -282,16 +309,9 @@ targetFunctionGrad dataset =
 --   -> (Double, Grad (NN MatrixDouble VectorDouble n o) Double)
 -- backprop' = backprop
 
--- {-# SPECIALIZE
---   backprop
---     :: (OutputType o n)
---     => Vector (VectorDouble Double, VectorDouble Double)
---     -> NN MatrixDouble VectorDouble n o Double
---     -> (Double, Grad (NN MatrixDouble VectorDouble n o) Double)
---   #-}
-
 splitDataset
-  :: forall k v w a. (Vect k v, Matrix k w v, Show a, ElemConstraints k a)
+  :: forall v w a. (Vect v, Matrix w v, Show a)
+  => (ElemConstraints v ~ ElemConstraints w, ElemConstraints w a)
   => Int -> Vector (v a, v a) -> (Vector (w a, w a), (w a, w a), Int)
 splitDataset n xs =
   (fmap mkMatrix $ V.fromList fullChunks, mkMatrix lastChunk, lastSize)
@@ -311,9 +331,9 @@ splitDataset n xs =
 
 {-# INLINABLE backprop #-}
 backprop
-  :: forall k w v n o a. (Matrix k w v, ConstrainedFunctor k w, Zippable k w)
-  => (Vect k v, ConstrainedFunctor k v)
-  => (Floating a, ElemConstraints k a)
+  :: forall w v n o a. (Matrix w v, ConstrainedFunctor w, Zippable w)
+  => (Vect v, ConstrainedFunctor v)
+  => (Floating a, ElemConstraints (NN w v n o) a, {-ElemConstraints w a,-} ElemConstraints v a)
   => (Nonlinearity n, OutputType o n)
   => (Show a)
   => Int
@@ -480,8 +500,8 @@ backprop chunkSize dataset
             ss = bias |+| MC.matrixMult layer prevLayer
 
 targetFunctionGradNumerical
-  :: forall w v n o a. (Matrix NoConstraints w v, Functor w, Traversable w, ElemConstraints NoConstraints a)
-  => (Vect NoConstraints v, ConstrainedFunctor NoConstraints v, Traversable v)
+  :: forall w v n o a. (Matrix w v, Functor w, Traversable w, ElemConstraints w a, ElemConstraints w ~ IdConstraint)
+  => (Vect v, ConstrainedFunctor v, Traversable v, ElemConstraints v ~ IdConstraint)
   => (Nonlinearity n, OutputType o n, Floating a)
   => a
   -> Vector (v a, v a)
@@ -510,7 +530,7 @@ targetFunctionGradNumerical epsilon dataset nn =
           | otherwise = y
 
 
-instance forall w v n o k a. (Pretty (w a), Vect k v, ElemConstraints k a, Show a, Nonlinearity n, OutputType o n) => Pretty (NN w v n o a) where
+instance forall w v n o a. (Pretty (w a), Vect v, ElemConstraints v a, Show a, Nonlinearity n, OutputType o n) => Pretty (NN w v n o a) where
   pretty nn@(NN hiddenLayers finalLayer) =
     "Nonlinearity: " <> ppNonlinearity nn <> PP.line <>
     "Output: "       <> ppOutput nn       <> PP.line <>

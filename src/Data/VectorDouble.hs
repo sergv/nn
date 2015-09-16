@@ -44,11 +44,12 @@ newtype VectorDouble a = VectorDouble { getVectorDouble :: U.Vector Double }
 instance Pretty (VectorDouble a) where
   pretty = pretty . U.toList . getVectorDouble
 
-instance ConstrainedFunctor IsDoubleConstraint VectorDouble where
+instance ConstrainedFunctor VectorDouble where
+  type ElemConstraints VectorDouble = (~) Double
   {-# INLINABLE cfmap #-}
   cfmap f = VectorDouble . U.map f . getVectorDouble
 
-instance Zippable IsDoubleConstraint VectorDouble where
+instance Zippable VectorDouble where
   {-# INLINABLE zipWith  #-}
   {-# INLINABLE zipWith3 #-}
   {-# INLINABLE zipWith4 #-}
@@ -56,7 +57,7 @@ instance Zippable IsDoubleConstraint VectorDouble where
   zipWith3 f (VectorDouble xs) (VectorDouble ys) (VectorDouble zs) = VectorDouble $ U.zipWith3 f xs ys zs
   zipWith4 f (VectorDouble xs) (VectorDouble ys) (VectorDouble zs) (VectorDouble ws) = VectorDouble $ U.zipWith4 f xs ys zs ws
 
-instance Vect IsDoubleConstraint VectorDouble where
+instance Vect VectorDouble where
   {-# INLINABLE fromList   #-}
   {-# INLINABLE toList     #-}
   {-# INLINABLE singleton  #-}
@@ -86,14 +87,14 @@ instance Vect IsDoubleConstraint VectorDouble where
 
 {-# INLINABLE concat #-}
 concat
-  :: (ElemConstraints IsDoubleConstraint a, ElemConstraints IsDoubleConstraint b)
+  :: (ElemConstraints VectorDouble a, ElemConstraints VectorDouble b)
   => [VectorDouble a]
   -> VectorDouble a
 concat = VectorDouble . U.concat . map getVectorDouble
 
 {-# INLINABLE concatMap #-}
 concatMap
-  :: (ElemConstraints IsDoubleConstraint a, ElemConstraints IsDoubleConstraint b)
+  :: (ElemConstraints VectorDouble a, ElemConstraints VectorDouble b)
   => (a -> VectorDouble b)
   -> VectorDouble a
   -> VectorDouble b
@@ -101,7 +102,7 @@ concatMap f = VectorDouble . U.concatMap (getVectorDouble . f) . getVectorDouble
 
 {-# INLINABLE takeBy #-}
 takeBy
-  :: (ElemConstraints IsDoubleConstraint a)
+  :: (ElemConstraints VectorDouble a)
   => Int
   -> Int
   -> VectorDouble a
@@ -111,14 +112,14 @@ takeBy rows cols (VectorDouble vs) =
 
 {-# INLINABLE fromList #-}
 fromList
-  :: (ElemConstraints IsDoubleConstraint a)
+  :: (ElemConstraints VectorDouble a)
   => [a]
   -> VectorDouble a
 fromList = VectorDouble . U.fromList
 
 {-# INLINABLE backpermute #-}
 backpermute
-  :: (ElemConstraints IsDoubleConstraint a)
+  :: (ElemConstraints VectorDouble a)
   => VectorDouble a
   -> U.Vector Int
   -> VectorDouble a
@@ -126,7 +127,7 @@ backpermute (VectorDouble xs) = VectorDouble . U.backpermute xs
 
 {-# INLINABLE unsafeBackpermute #-}
 unsafeBackpermute
-  :: (ElemConstraints IsDoubleConstraint a)
+  :: (ElemConstraints VectorDouble a)
   => VectorDouble a
   -> U.Vector Int
   -> VectorDouble a

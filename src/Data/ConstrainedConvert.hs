@@ -22,29 +22,29 @@ import qualified Data.Vector.Unboxed as U
 
 import Data.ConstrainedFunctor
 
-class Convert k k' f f' | f -> k f' k', f' -> k' where
-  convertTo   :: (ElemConstraints k a, ElemConstraints k' a) => f a  -> f' a
-  convertFrom :: (ElemConstraints k a, ElemConstraints k' a) => f' a -> f a
+class (ConstrainedFunctor f, ConstrainedFunctor f') => Convert f f' | f -> f' where
+  convertTo   :: (ElemConstraints f a, ElemConstraints f' a) => f a  -> f' a
+  convertFrom :: (ElemConstraints f a, ElemConstraints f' a) => f' a -> f a
 
-instance Convert NoConstraints NoConstraints V.Vector V.Vector where
+instance Convert V.Vector V.Vector where
   {-# INLINABLE convertTo   #-}
   {-# INLINABLE convertFrom #-}
   convertTo   = id
   convertFrom = id
 
-instance Convert NoConstraints NoConstraints [] [] where
+instance Convert [] [] where
   {-# INLINABLE convertTo   #-}
   {-# INLINABLE convertFrom #-}
   convertTo   = id
   convertFrom = id
 
-instance Convert UnboxConstraint UnboxConstraint U.Vector U.Vector where
+instance Convert U.Vector U.Vector where
   {-# INLINABLE convertTo   #-}
   {-# INLINABLE convertFrom #-}
   convertTo   = id
   convertFrom = id
 
-instance Convert StorableConstraint StorableConstraint S.Vector S.Vector where
+instance Convert S.Vector S.Vector where
   {-# INLINABLE convertTo   #-}
   {-# INLINABLE convertFrom #-}
   convertTo   = id
@@ -52,9 +52,9 @@ instance Convert StorableConstraint StorableConstraint S.Vector S.Vector where
 
 {-# INLINABLE mapConverting #-}
 mapConverting
-  :: (Convert k k' f f', ConstrainedFunctor k' f')
-  => (ElemConstraints k a, ElemConstraints k' a)
-  => (ElemConstraints k b, ElemConstraints k' b)
+  :: (Convert f f', ConstrainedFunctor f')
+  => (ElemConstraints f a, ElemConstraints f' a)
+  => (ElemConstraints f b, ElemConstraints f' b)
   => (a -> b)
   -> f a
   -> f b

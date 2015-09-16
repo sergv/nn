@@ -36,7 +36,6 @@ import Text.PrettyPrint.Leijen.Text (Pretty(..), Doc)
 import qualified Text.PrettyPrint.Leijen.Text as PP
 import System.IO.Unsafe
 
-import Data.Aligned
 import qualified Data.Aligned as Aligned
 import Data.AlignedStorableVector (AlignedStorableVector(..))
 import qualified Data.AlignedStorableVector as ASV
@@ -57,10 +56,10 @@ data OpenBlasMatrix a = OpenBlasMatrix
   }
   deriving (Show, Eq, Ord)
 
-unboxedMatrixWithTransposeToList :: (ElemConstraints AlignedConstraint a) => OpenBlasMatrix a -> [[a]]
+unboxedMatrixWithTransposeToList :: (ElemConstraints OpenBlasMatrix a) => OpenBlasMatrix a -> [[a]]
 unboxedMatrixWithTransposeToList (OpenBlasMatrix _ cols xs) = takeBy cols $ VC.toList xs
 
-instance (ElemConstraints AlignedConstraint a, Pretty a) => Pretty (OpenBlasMatrix a) where
+instance (ElemConstraints OpenBlasMatrix a, Pretty a) => Pretty (OpenBlasMatrix a) where
   pretty um@(OpenBlasMatrix rows cols _) =
     "Matrix " <> PP.int rows <> "x" <> PP.int cols PP.<$>
     PP.vsep (L.map showRow $ unboxedMatrixWithTransposeToList um)
@@ -68,14 +67,15 @@ instance (ElemConstraints AlignedConstraint a, Pretty a) => Pretty (OpenBlasMatr
       showRow :: [a] -> Doc
       showRow = PP.hcat . PP.punctuate PP.comma . L.map pretty
 
-instance (ElemConstraints AlignedConstraint a) => NFData (OpenBlasMatrix a) where
+instance (ElemConstraints OpenBlasMatrix a) => NFData (OpenBlasMatrix a) where
   rnf (OpenBlasMatrix rows cols xs) = rnf rows `seq` rnf cols `seq` rnf xs
 
-instance ConstrainedFunctor AlignedConstraint OpenBlasMatrix where
+instance ConstrainedFunctor OpenBlasMatrix where
+  type ElemConstraints OpenBlasMatrix = Aligned.Aligned
   {-# INLINABLE cfmap #-}
   cfmap f (OpenBlasMatrix rows cols xs) = OpenBlasMatrix rows cols $ cfmap f xs
 
-instance Zippable AlignedConstraint OpenBlasMatrix where
+instance Zippable OpenBlasMatrix where
   {-# INLINABLE zipWith  #-}
   {-# INLINABLE zipWith3 #-}
   {-# INLINABLE zipWith4 #-}
@@ -92,7 +92,7 @@ instance Zippable AlignedConstraint OpenBlasMatrix where
       OpenBlasMatrix xRows xCols $ zipWith4 f xs ys zs ws
     | otherwise = error "OpenBlasMatrix.zipWith4: cannot zip matrices of different shapes"
 
-instance Convert AlignedConstraint StorableConstraint OpenBlasMatrix StorableMatrixWithTranspose where
+instance Convert OpenBlasMatrix StorableMatrixWithTranspose where
   {-# INLINABLE convertTo   #-}
   {-# INLINABLE convertFrom #-}
   convertTo (OpenBlasMatrix wRows wCols ws) =
@@ -100,7 +100,7 @@ instance Convert AlignedConstraint StorableConstraint OpenBlasMatrix StorableMat
   convertFrom (StorableMatrixWithTranspose wRows wCols ws _) =
     OpenBlasMatrix wRows wCols ws
 
-instance Matrix AlignedConstraint OpenBlasMatrix AlignedStorableVector where
+instance Matrix OpenBlasMatrix AlignedStorableVector where
   {-# INLINABLE rows         #-}
   {-# INLINABLE columns      #-}
   {-# INLINABLE outerProduct #-}
@@ -137,7 +137,7 @@ instance Matrix AlignedConstraint OpenBlasMatrix AlignedStorableVector where
       ASV.unsafeWith columnVec $ \columnVecPtr ->
         ASV.unsafeWith rowVec $ \rowVecPtr ->
           SM.unsafeWith matrixData $ \resultPtr ->
-            ger
+            Aligned.ger
               rowMajorOrder
               rows'
               cols'
@@ -162,7 +162,7 @@ instance Matrix AlignedConstraint OpenBlasMatrix AlignedStorableVector where
       S.unsafeWith xs $ \matrixPtr ->
         ASV.unsafeWith ys $ \vectorPtr ->
           SM.unsafeWith zs $ \resultPtr ->
-            gemv
+            Aligned.gemv
               rowMajorOrder
               noTranspose
               rows'     -- m
@@ -199,7 +199,7 @@ instance Matrix AlignedConstraint OpenBlasMatrix AlignedStorableVector where
       S.unsafeWith xs $ \leftMatrixPtr ->
         S.unsafeWith ys $ \rightMatrixPtr ->
           SM.unsafeWith zs $ \resultPtr ->
-            gemm
+            Aligned.gemm
               rowMajorOrder
               noTranspose    -- TransA
               noTranspose    -- TransB
@@ -229,7 +229,7 @@ instance Matrix AlignedConstraint OpenBlasMatrix AlignedStorableVector where
       S.unsafeWith xs $ \leftMatrixPtr ->
         S.unsafeWith ys $ \rightMatrixPtr ->
           SM.unsafeWith zs $ \resultPtr ->
-            addVectors
+            Aligned.addVectors
               size
               leftMatrixPtr
               rightMatrixPtr
@@ -247,7 +247,7 @@ instance Matrix AlignedConstraint OpenBlasMatrix AlignedStorableVector where
       S.unsafeWith xs $ \leftMatrixPtr ->
         S.unsafeWith ys $ \rightMatrixPtr ->
           SM.unsafeWith zs $ \resultPtr ->
-            addVectorsScaled
+            Aligned.addVectorsScaled
               size
               leftMatrixPtr
               c
@@ -268,7 +268,7 @@ instance Matrix AlignedConstraint OpenBlasMatrix AlignedStorableVector where
       S.unsafeWith xs $ \leftMatrixPtr ->
         S.unsafeWith ys $ \rightMatrixPtr ->
           SM.unsafeWith zs $ \resultPtr ->
-            gemm
+            Aligned.gemm
               rowMajorOrder
               transposed     -- TransA
               noTranspose    -- TransB
@@ -294,7 +294,7 @@ instance Matrix AlignedConstraint OpenBlasMatrix AlignedStorableVector where
       S.unsafeWith xs $ \leftMatrixPtr ->
         S.unsafeWith ys $ \rightMatrixPtr ->
           SM.unsafeWith zs $ \resultPtr ->
-            gemm
+            Aligned.gemm
               rowMajorOrder
               noTranspose    -- TransA
               transposed     -- TransB
@@ -330,7 +330,7 @@ instance Matrix AlignedConstraint OpenBlasMatrix AlignedStorableVector where
 
 {-# INLINABLE transposeMatrixData #-}
 transposeMatrixData
-  :: (ElemConstraints AlignedConstraint a)
+  :: (ElemConstraints OpenBlasMatrix a)
   => Int
   -> Int
   -> S.Vector a
@@ -344,7 +344,7 @@ transposeMatrixData rows cols xs =
 
 {-# INLINABLE svecTakeBy #-}
 svecTakeBy
-  :: (ElemConstraints AlignedConstraint a)
+  :: (ElemConstraints OpenBlasMatrix a)
   => Int
   -> Int
   -> S.Vector a

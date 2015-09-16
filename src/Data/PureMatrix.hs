@@ -55,7 +55,7 @@ deriving instance (Show (v (v a))) => Show (PureMatrix v a)
 deriving instance (Eq (v (v a))) => Eq (PureMatrix v a)
 deriving instance (Ord (v (v a))) => Ord (PureMatrix v a)
 
-instance forall k v a. (Vect k v, ElemConstraints k a, ElemConstraints k (v a), Pretty a) => Pretty (PureMatrix v a) where
+instance forall v a. (Vect v, ElemConstraints v a, ElemConstraints v (v a), Pretty a) => Pretty (PureMatrix v a) where
   pretty (PureMatrix rows cols xss) =
     "Matrix " <> PP.int rows <> "x" <> PP.int cols PP.<$>
     PP.vsep (L.map showRow $ VC.toList xss)
@@ -66,11 +66,12 @@ instance forall k v a. (Vect k v, ElemConstraints k a, ElemConstraints k (v a), 
 instance (NFData (v (v a))) => NFData (PureMatrix v a) where
   rnf (PureMatrix rows cols xss) = rnf rows `seq` rnf cols `seq` rnf xss
 
-instance (Functor v) => ConstrainedFunctor NoConstraints (PureMatrix v) where
+instance (Functor v) => ConstrainedFunctor (PureMatrix v) where
+  type ElemConstraints (PureMatrix v) = IdConstraint
   {-# INLINABLE cfmap #-}
   cfmap = fmap
 
-instance (Functor v, Zippable NoConstraints v) => Zippable NoConstraints (PureMatrix v) where
+instance (Functor v, Zippable v, ElemConstraints v ~ IdConstraint) => Zippable (PureMatrix v) where
   {-# INLINABLE zipWith  #-}
   {-# INLINABLE zipWith3 #-}
   {-# INLINABLE zipWith4 #-}
@@ -87,13 +88,13 @@ instance (Functor v, Zippable NoConstraints v) => Zippable NoConstraints (PureMa
       PureMatrix xRows xCols $ zipWith4 (zipWith4 f) xss yss zss wss
     | otherwise = error "PureMatrix.zipWith4: cannot zip matrices of different shapes"
 
-instance Convert NoConstraints NoConstraints (PureMatrix v) (PureMatrix v) where
+instance (Functor v) => Convert (PureMatrix v) (PureMatrix v) where
   {-# INLINABLE convertTo   #-}
   {-# INLINABLE convertFrom #-}
   convertTo   = id
   convertFrom = id
 
-instance (Functor v, ConstrainedFunctor NoConstraints v, Vect NoConstraints v, TransposableVector NoConstraints v) => Matrix NoConstraints (PureMatrix v) v where
+instance (Functor v, ConstrainedFunctor v, Vect v, TransposableVector v, ElemConstraints v ~ IdConstraint) => Matrix (PureMatrix v) v where
   {-# INLINABLE rows         #-}
   {-# INLINABLE columns      #-}
   {-# INLINABLE outerProduct #-}

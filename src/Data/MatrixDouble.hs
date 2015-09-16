@@ -48,10 +48,10 @@ data MatrixDouble a = MatrixDouble
   }
   deriving (Show, Eq, Ord)
 
-unboxedMatrixToList :: (ElemConstraints IsDoubleConstraint a) => MatrixDouble a -> [[a]]
+unboxedMatrixToList :: (ElemConstraints MatrixDouble a) => MatrixDouble a -> [[a]]
 unboxedMatrixToList (MatrixDouble _ cols xs) = takeBy cols $ VC.toList xs
 
-instance (ElemConstraints IsDoubleConstraint a) => Pretty (MatrixDouble a) where
+instance (ElemConstraints MatrixDouble a) => Pretty (MatrixDouble a) where
   pretty md@(MatrixDouble rows cols _) =
     "Matrix " <> PP.int rows <> "x" <> PP.int cols <> " (double)" PP.<$>
     PP.vsep (L.map showRow $ unboxedMatrixToList md)
@@ -59,14 +59,15 @@ instance (ElemConstraints IsDoubleConstraint a) => Pretty (MatrixDouble a) where
       showRow :: [Double] -> Doc
       showRow = PP.hcat . PP.punctuate PP.comma . L.map pretty
 
-instance (ElemConstraints IsDoubleConstraint a) => NFData (MatrixDouble a) where
+instance (ElemConstraints MatrixDouble a) => NFData (MatrixDouble a) where
   rnf (MatrixDouble rows cols xs) = rnf rows `seq` rnf cols `seq` rnf xs
 
-instance ConstrainedFunctor IsDoubleConstraint MatrixDouble where
+instance ConstrainedFunctor MatrixDouble where
+  type ElemConstraints MatrixDouble = (~) Double
   {-# INLINABLE cfmap #-}
   cfmap f md = md { mdData = cfmap f $ mdData md }
 
-instance Zippable IsDoubleConstraint MatrixDouble where
+instance Zippable MatrixDouble where
   {-# INLINABLE zipWith  #-}
   {-# INLINABLE zipWith3 #-}
   {-# INLINABLE zipWith4 #-}
@@ -83,7 +84,7 @@ instance Zippable IsDoubleConstraint MatrixDouble where
       MatrixDouble xRows xCols $ zipWith4 f xs ys zs ws
     | otherwise = error "MatrixDouble.zipWith4: cannot zip matrices of different shapes"
 
-instance Matrix IsDoubleConstraint MatrixDouble VectorDouble where
+instance Matrix MatrixDouble VectorDouble where
   {-# INLINABLE rows         #-}
   {-# INLINABLE columns      #-}
   {-# INLINABLE outerProduct #-}

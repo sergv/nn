@@ -79,11 +79,12 @@ instance forall n o a. (Nonlinearity n, OutputType o n, Show a) => Pretty (NN n 
 instance (NFData a) => NFData (NN n o a) where
   rnf (NN xs fin) = rnf xs `seq` rnf fin
 
-instance ConstrainedFunctor NoConstraints (NN n o) where
+instance ConstrainedFunctor (NN n o) where
+  type ElemConstraints (NN n o) = IdConstraint
   {-# INLINABLE cfmap #-}
   cfmap = fmap
 
-instance Zippable NoConstraints (NN n o) where
+instance Zippable (NN n o) where
   {-# INLINABLE zipWith  #-}
   {-# INLINABLE zipWith3 #-}
   {-# INLINABLE zipWith4 #-}
@@ -91,7 +92,7 @@ instance Zippable NoConstraints (NN n o) where
   zipWith3 = nnZipWith3
   zipWith4 = nnZipWith4
 
-instance Convert NoConstraints NoConstraints (NN n o) (NN n o) where
+instance Convert (NN n o) (NN n o) where
   {-# INLINABLE convertTo   #-}
   {-# INLINABLE convertFrom #-}
   convertTo   = id

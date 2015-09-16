@@ -32,22 +32,22 @@ import qualified NN.Specific as S
 import Nonlinearity
 import Util
 
-class NNVectorLike k (nn :: * -> *) a | nn -> k where
+class (ConstrainedFunctor nn) => NNVectorLike (nn :: * -> *) a where
   -- z = x + b * y
   -- addScaled :: (Floating a) => nn a -> a -> nn a -> nn a
   -- size      :: (Floating a) => nn a ->  a
-  fromWeightList :: (ElemConstraints k a, MonadError String m, Show a) => [[[a]]] -> m (nn a)
-  toWeightList   :: (ElemConstraints k a) => nn a -> [[[a]]]
-  addScaled      :: (ElemConstraints k a) => nn a -> a -> nn a -> nn a
-  size           :: (ElemConstraints k a) => nn a -> a
-  differenceSize :: (ElemConstraints k a) => nn a -> nn a -> a
-  make           :: (ElemConstraints k a, Monad m) => Int -> [Int] -> Int -> m a -> m (nn a)
+  fromWeightList :: (ElemConstraints nn a, MonadError String m, Show a) => [[[a]]] -> m (nn a)
+  toWeightList   :: (ElemConstraints nn a) => nn a -> [[[a]]]
+  addScaled      :: (ElemConstraints nn a) => nn a -> a -> nn a -> nn a
+  size           :: (ElemConstraints nn a) => nn a -> a
+  differenceSize :: (ElemConstraints nn a) => nn a -> nn a -> a
+  make           :: (ElemConstraints nn a, Monad m) => Int -> [Int] -> Int -> m a -> m (nn a)
 
-class NeuralNetwork k (nn :: * -> *) (v :: * -> *) a | nn -> k v where
-  forwardPropagate   :: (ElemConstraints k a) => nn a -> v a -> v a
-  targetFunctionGrad :: (ElemConstraints k a) => Vector (v a, v a) -> nn a -> (a, Grad nn a)
+class (ConstrainedFunctor nn) => NeuralNetwork (nn :: * -> *) (v :: * -> *) a | nn -> v where
+  forwardPropagate   :: (ElemConstraints nn a) => nn a -> v a -> v a
+  targetFunctionGrad :: (ElemConstraints nn a) => Vector (v a, v a) -> nn a -> (a, Grad nn a)
 
-instance (Nonlinearity n, OutputType o n, Floating a, Show a) => NNVectorLike NoConstraints (S.NN n o) a where
+instance (Nonlinearity n, OutputType o n, Floating a, Show a) => NNVectorLike (S.NN n o) a where
   fromWeightList = S.fromWeightList
   toWeightList   = S.toWeightList
   addScaled      = S.addScaled
@@ -55,12 +55,21 @@ instance (Nonlinearity n, OutputType o n, Floating a, Show a) => NNVectorLike No
   differenceSize = S.differenceSize
   make           = S.makeNN
 
-instance (Nonlinearity n, OutputType o n, Floating a, Show a) => NeuralNetwork NoConstraints (S.NN n o) Vector a where
+instance (Nonlinearity n, OutputType o n, Floating a, Show a) => NeuralNetwork (S.NN n o) Vector a where
   forwardPropagate   = S.forwardPropagate
   targetFunctionGrad = S.targetFunctionGrad -- S.backprop -- S.targetFunctionGrad
 
 
-instance (Nonlinearity n, OutputType o n, MC.Matrix k w v, VC.Vect k v, Zippable k w, ConstrainedFunctor k w, Floating a, Show a) => NNVectorLike k (G.NN w v n o) a where
+instance ( Nonlinearity n
+         , OutputType o n
+         , MC.Matrix w v
+         , VC.Vect v
+         , Zippable w
+         , ConstrainedFunctor w
+         , Floating a
+         , Show a
+         )
+         => NNVectorLike (G.NN w v n o) a where
   fromWeightList = G.fromWeightList
   toWeightList   = G.toWeightList
   addScaled      = G.addScaled
@@ -70,13 +79,14 @@ instance (Nonlinearity n, OutputType o n, MC.Matrix k w v, VC.Vect k v, Zippable
 
 instance ( Nonlinearity n
          , OutputType o n
-         , MC.Matrix k w v
-         , VC.Vect k v
-         , ConstrainedFunctor k w
-         , ConstrainedFunctor k v
-         , Zippable k w
+         , MC.Matrix w v
+         , VC.Vect v
+         , ConstrainedFunctor w
+         , ConstrainedFunctor v
+         , Zippable w
          , Floating a
          , Show a
-         ) => NeuralNetwork k (G.NN w v n o) v a where
+         )
+         => NeuralNetwork (G.NN w v n o) v a where
   forwardPropagate   = G.forwardPropagate
   targetFunctionGrad = G.backprop 500

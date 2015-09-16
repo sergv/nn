@@ -24,18 +24,18 @@ import qualified Data.Vector.Unboxed as U
 
 import Data.ConstrainedFunctor
 
-class Zippable k f | f -> k where
+class (ConstrainedFunctor f) => Zippable f where
   zipWith
-    :: (ElemConstraints k a, ElemConstraints k b, ElemConstraints k c)
+    :: (ElemConstraints f a, ElemConstraints f b, ElemConstraints f c)
     => (a -> b -> c) -> f a -> f b -> f c
   zipWith3
-    :: (ElemConstraints k a, ElemConstraints k b, ElemConstraints k c, ElemConstraints k d)
+    :: (ElemConstraints f a, ElemConstraints f b, ElemConstraints f c, ElemConstraints f d)
     => (a -> b -> c -> d) -> f a -> f b -> f c -> f d
   zipWith4
-    :: (ElemConstraints k a, ElemConstraints k b, ElemConstraints k c, ElemConstraints k d, ElemConstraints k e)
+    :: (ElemConstraints f a, ElemConstraints f b, ElemConstraints f c, ElemConstraints f d, ElemConstraints f e)
     => (a -> b -> c -> d -> e) -> f a -> f b -> f c -> f d -> f e
 
-instance Zippable NoConstraints Vector where
+instance Zippable Vector where
   {-# INLINABLE zipWith  #-}
   {-# INLINABLE zipWith3 #-}
   {-# INLINABLE zipWith4 #-}
@@ -43,7 +43,7 @@ instance Zippable NoConstraints Vector where
   zipWith3 = V.zipWith3
   zipWith4 = V.zipWith4
 
-instance Zippable NoConstraints [] where
+instance Zippable [] where
   {-# INLINABLE zipWith  #-}
   {-# INLINABLE zipWith3 #-}
   {-# INLINABLE zipWith4 #-}
@@ -51,7 +51,7 @@ instance Zippable NoConstraints [] where
   zipWith3 = L.zipWith3
   zipWith4 = L.zipWith4
 
-instance Zippable UnboxConstraint U.Vector where
+instance Zippable U.Vector where
   {-# INLINABLE zipWith  #-}
   {-# INLINABLE zipWith3 #-}
   {-# INLINABLE zipWith4 #-}
@@ -59,7 +59,7 @@ instance Zippable UnboxConstraint U.Vector where
   zipWith3 = U.zipWith3
   zipWith4 = U.zipWith4
 
-instance Zippable StorableConstraint S.Vector where
+instance Zippable S.Vector where
   {-# INLINABLE zipWith  #-}
   {-# INLINABLE zipWith3 #-}
   {-# INLINABLE zipWith4 #-}

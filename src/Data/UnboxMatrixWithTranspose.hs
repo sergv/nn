@@ -66,10 +66,10 @@ data UnboxMatrixWithTranspose a = UnboxMatrixWithTranspose
   }
   deriving (Show, Eq, Ord)
 
-unboxedMatrixWithTransposeToList :: (ElemConstraints UnboxConstraint a) => UnboxMatrixWithTranspose a -> [[a]]
+unboxedMatrixWithTransposeToList :: (ElemConstraints UnboxMatrixWithTranspose a) => UnboxMatrixWithTranspose a -> [[a]]
 unboxedMatrixWithTransposeToList (UnboxMatrixWithTranspose _ cols xs _) = takeBy cols $ VC.toList xs
 
-instance (ElemConstraints UnboxConstraint a, Pretty a) => Pretty (UnboxMatrixWithTranspose a) where
+instance (ElemConstraints UnboxMatrixWithTranspose a, Pretty a) => Pretty (UnboxMatrixWithTranspose a) where
   pretty um@(UnboxMatrixWithTranspose rows cols _ _) =
     "Matrix " <> PP.int rows <> "x" <> PP.int cols <> " (double)" PP.<$>
     PP.vsep (L.map showRow $ unboxedMatrixWithTransposeToList um)
@@ -77,15 +77,16 @@ instance (ElemConstraints UnboxConstraint a, Pretty a) => Pretty (UnboxMatrixWit
       showRow :: [a] -> Doc
       showRow = PP.hcat . PP.punctuate PP.comma . L.map pretty
 
-instance (ElemConstraints UnboxConstraint a) => NFData (UnboxMatrixWithTranspose a) where
+instance (ElemConstraints UnboxMatrixWithTranspose a) => NFData (UnboxMatrixWithTranspose a) where
   rnf (UnboxMatrixWithTranspose rows cols xs ys) = rnf rows `seq` rnf cols `seq` rnf xs `seq` rnf ys
 
-instance ConstrainedFunctor UnboxConstraint UnboxMatrixWithTranspose where
+instance ConstrainedFunctor UnboxMatrixWithTranspose where
+  type ElemConstraints UnboxMatrixWithTranspose = U.Unbox
   {-# INLINABLE cfmap #-}
   cfmap f (UnboxMatrixWithTranspose rows cols xs _) =
     mkMatrixWithTranspose rows cols $ cfmap f xs
 
-instance Zippable UnboxConstraint UnboxMatrixWithTranspose where
+instance Zippable UnboxMatrixWithTranspose where
   {-# INLINABLE zipWith  #-}
   {-# INLINABLE zipWith3 #-}
   {-# INLINABLE zipWith4 #-}
@@ -102,13 +103,13 @@ instance Zippable UnboxConstraint UnboxMatrixWithTranspose where
       mkMatrixWithTranspose xRows xCols $ zipWith4 f xs ys zs ws
     | otherwise = error "UnboxMatrixWithTranspose.zipWith4: cannot zip matrices of different shapes"
 
-instance Convert UnboxConstraint UnboxConstraint UnboxMatrixWithTranspose UnboxMatrixWithTranspose where
+instance Convert UnboxMatrixWithTranspose UnboxMatrixWithTranspose where
   {-# INLINABLE convertTo   #-}
   {-# INLINABLE convertFrom #-}
   convertTo   = id
   convertFrom = id
 
-instance Matrix UnboxConstraint UnboxMatrixWithTranspose U.Vector where
+instance Matrix UnboxMatrixWithTranspose U.Vector where
   {-# INLINABLE rows         #-}
   {-# INLINABLE columns      #-}
   {-# INLINABLE outerProduct #-}
@@ -174,7 +175,7 @@ instance Matrix UnboxConstraint UnboxMatrixWithTranspose U.Vector where
 
 {-# INLINABLE mkMatrixWithTranspose #-}
 mkMatrixWithTranspose
-  :: (ElemConstraints UnboxConstraint a)
+  :: (ElemConstraints UnboxMatrixWithTranspose a)
   => Int
   -> Int
   -> U.Vector a
@@ -189,7 +190,7 @@ mkMatrixWithTranspose rows cols matrixData =
 
 {-# INLINABLE transposeMatrixData #-}
 transposeMatrixData
-  :: (ElemConstraints UnboxConstraint a)
+  :: (ElemConstraints UnboxMatrixWithTranspose a)
   => Int
   -> Int
   -> U.Vector a
@@ -203,7 +204,7 @@ transposeMatrixData rows cols xs =
 
 {-# INLINABLE uvecTakeBy #-}
 uvecTakeBy
-  :: (ElemConstraints UnboxConstraint a)
+  :: (ElemConstraints UnboxMatrixWithTranspose a)
   => Int
   -> Int
   -> U.Vector a

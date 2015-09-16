@@ -66,10 +66,10 @@ data StorableMatrixWithTranspose a = StorableMatrixWithTranspose
   }
   deriving (Show, Eq, Ord)
 
-unboxedMatrixWithTransposeToList :: (ElemConstraints StorableConstraint a) => StorableMatrixWithTranspose a -> [[a]]
+unboxedMatrixWithTransposeToList :: (ElemConstraints StorableMatrixWithTranspose a) => StorableMatrixWithTranspose a -> [[a]]
 unboxedMatrixWithTransposeToList (StorableMatrixWithTranspose _ cols xs _) = takeBy cols $ VC.toList xs
 
-instance (ElemConstraints StorableConstraint a, Pretty a) => Pretty (StorableMatrixWithTranspose a) where
+instance (ElemConstraints StorableMatrixWithTranspose a, Pretty a) => Pretty (StorableMatrixWithTranspose a) where
   pretty um@(StorableMatrixWithTranspose rows cols _ _) =
     "Matrix " <> PP.int rows <> "x" <> PP.int cols <> " (double)" PP.<$>
     PP.vsep (L.map showRow $ unboxedMatrixWithTransposeToList um)
@@ -77,15 +77,16 @@ instance (ElemConstraints StorableConstraint a, Pretty a) => Pretty (StorableMat
       showRow :: [a] -> Doc
       showRow = PP.hcat . PP.punctuate PP.comma . L.map pretty
 
-instance (ElemConstraints StorableConstraint a) => NFData (StorableMatrixWithTranspose a) where
+instance (ElemConstraints StorableMatrixWithTranspose a) => NFData (StorableMatrixWithTranspose a) where
   rnf (StorableMatrixWithTranspose rows cols xs ys) = rnf rows `seq` rnf cols `seq` rnf xs `seq` rnf ys
 
-instance ConstrainedFunctor StorableConstraint StorableMatrixWithTranspose where
+instance ConstrainedFunctor StorableMatrixWithTranspose where
+  type ElemConstraints StorableMatrixWithTranspose = S.Storable
   {-# INLINABLE cfmap #-}
   cfmap f (StorableMatrixWithTranspose rows cols xs _) =
     mkMatrixWithTranspose rows cols $ cfmap f xs
 
-instance Zippable StorableConstraint StorableMatrixWithTranspose where
+instance Zippable StorableMatrixWithTranspose where
   {-# INLINABLE zipWith  #-}
   {-# INLINABLE zipWith3 #-}
   {-# INLINABLE zipWith4 #-}
@@ -102,13 +103,13 @@ instance Zippable StorableConstraint StorableMatrixWithTranspose where
       mkMatrixWithTranspose xRows xCols $ zipWith4 f xs ys zs ws
     | otherwise = error "StorableMatrixWithTranspose.zipWith4: cannot zip matrices of different shapes"
 
-instance Convert StorableConstraint StorableConstraint StorableMatrixWithTranspose StorableMatrixWithTranspose where
+instance Convert StorableMatrixWithTranspose StorableMatrixWithTranspose where
   {-# INLINABLE convertTo   #-}
   {-# INLINABLE convertFrom #-}
   convertTo   = id
   convertFrom = id
 
-instance Matrix StorableConstraint StorableMatrixWithTranspose S.Vector where
+instance Matrix StorableMatrixWithTranspose S.Vector where
   {-# INLINABLE rows         #-}
   {-# INLINABLE columns      #-}
   {-# INLINABLE outerProduct #-}
@@ -172,7 +173,7 @@ instance Matrix StorableConstraint StorableMatrixWithTranspose S.Vector where
 
 {-# INLINABLE mkMatrixWithTranspose #-}
 mkMatrixWithTranspose
-  :: (ElemConstraints StorableConstraint a)
+  :: (ElemConstraints StorableMatrixWithTranspose a)
   => Int
   -> Int
   -> S.Vector a
@@ -187,7 +188,7 @@ mkMatrixWithTranspose rows cols matrixData =
 
 {-# INLINABLE transposeMatrixData #-}
 transposeMatrixData
-  :: (ElemConstraints StorableConstraint a)
+  :: (ElemConstraints StorableMatrixWithTranspose a)
   => Int
   -> Int
   -> S.Vector a
@@ -201,7 +202,7 @@ transposeMatrixData rows cols xs =
 
 {-# INLINABLE svecTakeBy #-}
 svecTakeBy
-  :: (ElemConstraints StorableConstraint a)
+  :: (ElemConstraints StorableMatrixWithTranspose a)
   => Int
   -> Int
   -> S.Vector a

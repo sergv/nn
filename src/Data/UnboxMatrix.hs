@@ -48,10 +48,10 @@ data UnboxMatrix a = UnboxMatrix
   }
   deriving (Show, Eq, Ord)
 
-unboxedMatrixToList :: (ElemConstraints UnboxConstraint a) => UnboxMatrix a -> [[a]]
+unboxedMatrixToList :: (ElemConstraints UnboxMatrix a) => UnboxMatrix a -> [[a]]
 unboxedMatrixToList (UnboxMatrix _ cols xs) = takeBy cols $ VC.toList xs
 
-instance (ElemConstraints UnboxConstraint a, Pretty a) => Pretty (UnboxMatrix a) where
+instance (ElemConstraints UnboxMatrix a, Pretty a) => Pretty (UnboxMatrix a) where
   pretty um@(UnboxMatrix rows cols _) =
     "Matrix " <> PP.int rows <> "x" <> PP.int cols <> " (double)" PP.<$>
     PP.vsep (L.map showRow $ unboxedMatrixToList um)
@@ -59,14 +59,15 @@ instance (ElemConstraints UnboxConstraint a, Pretty a) => Pretty (UnboxMatrix a)
       showRow :: [a] -> Doc
       showRow = PP.hcat . PP.punctuate PP.comma . L.map pretty
 
-instance (ElemConstraints UnboxConstraint a) => NFData (UnboxMatrix a) where
+instance (ElemConstraints UnboxMatrix a) => NFData (UnboxMatrix a) where
   rnf (UnboxMatrix rows cols xs) = rnf rows `seq` rnf cols `seq` rnf xs
 
-instance ConstrainedFunctor UnboxConstraint UnboxMatrix where
+instance ConstrainedFunctor UnboxMatrix where
+  type ElemConstraints UnboxMatrix = U.Unbox
   {-# INLINABLE cfmap #-}
   cfmap f um = um { umData = cfmap f $ umData um }
 
-instance Zippable UnboxConstraint UnboxMatrix where
+instance Zippable UnboxMatrix where
   {-# INLINABLE zipWith  #-}
   {-# INLINABLE zipWith3 #-}
   {-# INLINABLE zipWith4 #-}
@@ -83,13 +84,13 @@ instance Zippable UnboxConstraint UnboxMatrix where
       UnboxMatrix xRows xCols $ zipWith4 f xs ys zs ws
     | otherwise = error "UnboxMatrix.zipWith4: cannot zip matrices of different shapes"
 
-instance Convert UnboxConstraint UnboxConstraint UnboxMatrix UnboxMatrix where
+instance Convert UnboxMatrix UnboxMatrix where
   {-# INLINABLE convertTo   #-}
   {-# INLINABLE convertFrom #-}
   convertTo   = id
   convertFrom = id
 
-instance Matrix UnboxConstraint UnboxMatrix U.Vector where
+instance Matrix UnboxMatrix U.Vector where
   {-# INLINABLE rows         #-}
   {-# INLINABLE columns      #-}
   {-# INLINABLE outerProduct #-}
@@ -162,7 +163,7 @@ instance Matrix UnboxConstraint UnboxMatrix U.Vector where
 
 {-# INLINABLE uvecTakeBy #-}
 uvecTakeBy
-  :: (ElemConstraints UnboxConstraint a)
+  :: (ElemConstraints UnboxMatrix a)
   => Int
   -> Int
   -> U.Vector a

@@ -128,10 +128,10 @@ main = do
     mt = pureMT 0
 
     searchForFittingNN
-      :: forall k nn v a k' nn'. (NNVectorLike k nn a, NeuralNetwork k nn v a, Pretty (nn a))
-      => (ElemConstraints k a, Vect k v, Show a, Num a, Floating a, PlotValue a)
-      => (Convert k k' nn nn', ConstrainedFunctor k' nn', Zippable k' nn')
-      => (ElemConstraints k' a, ElemConstraints k' (V3 a))
+      :: forall nn v a nn'. (NNVectorLike nn a, NeuralNetwork nn v a, Pretty (nn a), ElemConstraints nn a)
+      => (ElemConstraints v a, Vect v, Show a, Num a, Floating a, PlotValue a)
+      => (Convert nn nn', ConstrainedFunctor nn', Zippable nn')
+      => (ElemConstraints nn' a, ElemConstraints nn' (V3 a))
       => PureMT
       -> State PureMT (nn a)
       -> ErrInfo a
@@ -162,7 +162,7 @@ main = do
             (errorAmt, nn') = iteratedUpdates rpropData errInfo nn
 
 plotResult
-  :: (NeuralNetwork k nn v a, ElemConstraints k a, Vect k v, Ord a, Show a, PlotValue a)
+  :: (NeuralNetwork nn v a, ElemConstraints nn a, ElemConstraints v a, Vect v, Ord a, Show a, PlotValue a)
   => Int -> a -> nn a -> Vector (a, a) -> IO ()
 plotResult n err nn dataset = do
   createDirectoryIfMissing True plotPath

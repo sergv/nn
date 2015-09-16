@@ -14,6 +14,7 @@
 {-# LANGUAGE DefaultSignatures      #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MultiParamTypeClasses  #-}
+{-# LANGUAGE TypeFamilies           #-}
 
 module Data.MatrixClass where
 
@@ -25,55 +26,55 @@ import qualified Prelude as P
 
 import Util
 
-class (Vect k v) => Matrix k w v | w -> v k where
+class (Vect v, ElemConstraints v ~ ElemConstraints w) => Matrix w v | w -> v where
   {-# INLINABLE sum                         #-}
   {-# INLINABLE addScaled                   #-}
   {-# INLINABLE matrixMultByTransposedLeft  #-}
   {-# INLINABLE matrixMultByTransposedRight #-}
-  fromList   :: (ElemConstraints k a, Show a) => [[a]] -> w a
-  toList     :: (ElemConstraints k a) => w a -> [[a]]
+  fromList   :: (ElemConstraints w a, Show a) => [[a]] -> w a
+  toList     :: (ElemConstraints w a) => w a -> [[a]]
   rows       :: w a -> Int
   columns    :: w a -> Int
-  replicateM :: (Monad m, ElemConstraints k a)
+  replicateM :: (Monad m, ElemConstraints w a)
              => Int -- ^ rows
              -> Int -- ^ columns
              -> m a -- ^ action to create individual element
              -> m (w a)
   -- | Multiply column vector by row vector to obtain a matrix.
-  outerProduct :: (Num a, ElemConstraints k a) => v a -> v a -> w a
+  outerProduct :: (Num a, ElemConstraints w a) => v a -> v a -> w a
 
-  vecMulRight :: (Num a, ElemConstraints k a) => w a -> v a -> v a
-  transpose :: (ElemConstraints k a) => w a -> w a
-  matrixMult :: (ElemConstraints k a, Num a) => w a -> w a -> w a
-  (|+|) :: (ElemConstraints k a, Num a) => w a -> w a -> w a
-  addScaled  :: (ElemConstraints k a, Num a) => w a -> a -> w a -> w a
-  default addScaled :: (ElemConstraints k a, Num a, ConstrainedFunctor k w)
+  vecMulRight :: (Num a, ElemConstraints w a) => w a -> v a -> v a
+  transpose :: (ElemConstraints w a) => w a -> w a
+  matrixMult :: (ElemConstraints w a, Num a) => w a -> w a -> w a
+  (|+|) :: (ElemConstraints w a, Num a) => w a -> w a -> w a
+  addScaled  :: (ElemConstraints w a, Num a) => w a -> a -> w a -> w a
+  default addScaled :: (ElemConstraints w a, Num a, ConstrainedFunctor w)
                     => w a -> a -> w a -> w a
   addScaled xs c ys = xs |+| cfmap (*! c) ys
-  sumColumns :: (ElemConstraints k a, Num a) => w a -> v a
-  sum :: (ElemConstraints k a, Num a) => w a -> a
+  sumColumns :: (ElemConstraints w a, Num a) => w a -> v a
+  sum :: (ElemConstraints w a, Num a) => w a -> a
   sum = VC.sum . sumColumns
   -- | Multiply transposed first matrix by second.
-  matrixMultByTransposedLeft :: (ElemConstraints k a, Num a) => w a -> w a -> w a
+  matrixMultByTransposedLeft :: (ElemConstraints w a, Num a) => w a -> w a -> w a
   matrixMultByTransposedLeft x y = matrixMult (transpose x) y
   -- | Multiply first matrix by transposed second.
-  matrixMultByTransposedRight :: (ElemConstraints k a, Num a) => w a -> w a -> w a
+  matrixMultByTransposedRight :: (ElemConstraints w a, Num a) => w a -> w a -> w a
   matrixMultByTransposedRight x y = matrixMult x (transpose y)
 
-  normL2Square :: (Matrix k w v, Num a, ElemConstraints k a) => w a -> a
+  normL2Square :: (Num a, ElemConstraints w a) => w a -> a
   default normL2Square
-    :: (Matrix k w v, Num a, ConstrainedFunctor k w, ElemConstraints k a)
+    :: (Num a, ConstrainedFunctor w, ElemConstraints w a)
     => w a -> a
   normL2Square matr = sum $ cfmap (\x -> x *! x) matr
   -- normL2Square matr = VC.sum $ vecMulRight matrSquares v
   --   where
   --     matrSquares = cfmap (\x -> x * x) matr
   --     v = VC.replicate (columns matr) 1
-  exp :: (ElemConstraints k a, Floating a) => w a -> w a
+  exp :: (ElemConstraints w a, Floating a) => w a -> w a
   default exp
-    :: (ElemConstraints k a, Floating a, ConstrainedFunctor k w)
+    :: (ElemConstraints w a, Floating a, ConstrainedFunctor w)
     => w a -> w a
   exp = cfmap P.exp
 
-showMatrixSize :: (Matrix k w v) => w a -> String
+showMatrixSize :: (Matrix w v) => w a -> String
 showMatrixSize x = show (rows x) ++ "x" ++ show (columns x)

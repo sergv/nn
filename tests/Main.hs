@@ -348,7 +348,7 @@ mkAlignedStorableVectorInput mkInput =
 
 
 compareGradients
-  :: forall k nn v. (NNVectorLike k nn Double, Pretty (nn Double), ElemConstraints k Double)
+  :: forall nn v. (NNVectorLike nn Double, Pretty (nn Double), ElemConstraints nn Double)
   => String
   -> (Double -> (v Double, v Double))
   -> (State PureMT (nn Double))
@@ -359,9 +359,9 @@ compareGradients name mkInput mkNN targetFuncGrad targetFuncGrad' =
   compareNNGradients name mkInput mkNN targetFuncGrad mkInput mkNN targetFuncGrad'
 
 compareNNGradients
-  :: forall nn nn' k k' v v' a b.
-     (NNVectorLike k nn a, Pretty (nn a), ElemConstraints k a)
-  => (NNVectorLike k' nn' b, Pretty (nn' b), ElemConstraints k' b)
+  :: forall nn nn' v v' a b.
+     (NNVectorLike nn a, Pretty (nn a), ElemConstraints nn a)
+  => (NNVectorLike nn' b, Pretty (nn' b), ElemConstraints nn' b)
   => (Show a, Pretty a, ToDouble a, Show b, Pretty b, ToDouble b)
   => String
   -> (Double -> (v a, v a))

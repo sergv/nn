@@ -36,7 +36,6 @@ import Foreign (Ptr, Storable)
 import Text.PrettyPrint.Leijen.Text (Pretty(..))
 import System.IO.Unsafe
 
-import Data.Aligned (AlignedConstraint, addVectors, addVectorsScaled)
 import qualified Data.Aligned as Aligned
 import Data.ConstrainedConvert (Convert)
 import qualified Data.ConstrainedConvert as Conv
@@ -53,11 +52,12 @@ newtype AlignedStorableVector a = AlignedStorableVector
 instance (Pretty a, Storable a) => Pretty (AlignedStorableVector a) where
   pretty = pretty . S.toList . getAlignedStorableVector
 
-instance ConstrainedFunctor AlignedConstraint AlignedStorableVector where
+instance ConstrainedFunctor AlignedStorableVector where
+  type ElemConstraints AlignedStorableVector = Aligned.Aligned
   {-# INLINABLE cfmap #-}
   cfmap f = AlignedStorableVector . S.map f . getAlignedStorableVector
 
-instance Zippable AlignedConstraint AlignedStorableVector where
+instance Zippable AlignedStorableVector where
   {-# INLINABLE zipWith  #-}
   {-# INLINABLE zipWith3 #-}
   {-# INLINABLE zipWith4 #-}
@@ -65,13 +65,13 @@ instance Zippable AlignedConstraint AlignedStorableVector where
   zipWith3 f (AlignedStorableVector xs) (AlignedStorableVector ys) (AlignedStorableVector zs) = AlignedStorableVector $ S.zipWith3 f xs ys zs
   zipWith4 f (AlignedStorableVector xs) (AlignedStorableVector ys) (AlignedStorableVector zs) (AlignedStorableVector ws) = AlignedStorableVector $ S.zipWith4 f xs ys zs ws
 
-instance Convert AlignedConstraint StorableConstraint AlignedStorableVector S.Vector where
+instance Convert AlignedStorableVector S.Vector where
   {-# INLINABLE convertTo   #-}
   {-# INLINABLE convertFrom #-}
   convertTo   = getAlignedStorableVector
   convertFrom = AlignedStorableVector
 
-instance Vect AlignedConstraint AlignedStorableVector where
+instance Vect AlignedStorableVector where
   {-# INLINABLE fromList   #-}
   {-# INLINABLE toList     #-}
   {-# INLINABLE singleton  #-}
@@ -100,7 +100,7 @@ instance Vect AlignedConstraint AlignedStorableVector where
       S.unsafeWith xs $ \xsPtr ->
         S.unsafeWith ys $ \ysPtr ->
           SM.unsafeWith result $ \resultPtr ->
-            addVectors
+            Aligned.addVectors
               n
               xsPtr
               ysPtr
@@ -117,7 +117,7 @@ instance Vect AlignedConstraint AlignedStorableVector where
       S.unsafeWith xs $ \xsPtr ->
         S.unsafeWith ys $ \ysPtr ->
           SM.unsafeWith result $ \resultPtr ->
-            addVectorsScaled n xsPtr c ysPtr resultPtr
+            Aligned.addVectorsScaled n xsPtr c ysPtr resultPtr
       AlignedStorableVector <$> S.freeze result
     where
       n  = S.length xs
@@ -147,14 +147,14 @@ instance Vect AlignedConstraint AlignedStorableVector where
 
 {-# INLINABLE concat #-}
 concat
-  :: (ElemConstraints AlignedConstraint a)
+  :: (ElemConstraints AlignedStorableVector a)
   => [AlignedStorableVector a]
   -> AlignedStorableVector a
 concat = AlignedStorableVector . S.concat . map getAlignedStorableVector
 
 {-# INLINABLE concatMap #-}
 concatMap
-  :: (ElemConstraints AlignedConstraint a, ElemConstraints AlignedConstraint b)
+  :: (ElemConstraints AlignedStorableVector a, ElemConstraints AlignedStorableVector b)
   => (a -> AlignedStorableVector b)
   -> AlignedStorableVector a
   -> AlignedStorableVector b
@@ -162,7 +162,7 @@ concatMap f = AlignedStorableVector . S.concatMap (getAlignedStorableVector . f)
 
 {-# INLINABLE takeBy #-}
 takeBy
-  :: (ElemConstraints AlignedConstraint a)
+  :: (ElemConstraints AlignedStorableVector a)
   => Int
   -> Int
   -> AlignedStorableVector a
@@ -172,14 +172,14 @@ takeBy rows cols (AlignedStorableVector vs) =
 
 {-# INLINABLE fromList #-}
 fromList
-  :: (ElemConstraints AlignedConstraint a)
+  :: (ElemConstraints AlignedStorableVector a)
   => [a]
   -> AlignedStorableVector a
 fromList = AlignedStorableVector . S.fromList
 
 {-# INLINABLE backpermute #-}
 backpermute
-  :: (ElemConstraints AlignedConstraint a)
+  :: (ElemConstraints AlignedStorableVector a)
   => AlignedStorableVector a
   -> S.Vector Int
   -> AlignedStorableVector a
@@ -187,7 +187,7 @@ backpermute (AlignedStorableVector xs) = AlignedStorableVector . S.backpermute x
 
 {-# INLINABLE unsafeBackpermute #-}
 unsafeBackpermute
-  :: (ElemConstraints AlignedConstraint a)
+  :: (ElemConstraints AlignedStorableVector a)
   => AlignedStorableVector a
   -> S.Vector Int
   -> AlignedStorableVector a
@@ -195,7 +195,7 @@ unsafeBackpermute (AlignedStorableVector xs) = AlignedStorableVector . S.unsafeB
 
 {-# INLINABLE unsafeWith #-}
 unsafeWith
-  :: (ElemConstraints AlignedConstraint a)
+  :: (ElemConstraints AlignedStorableVector a)
   => AlignedStorableVector a
   -> (Ptr a -> IO b)
   -> IO b

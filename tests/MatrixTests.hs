@@ -44,8 +44,8 @@ tests = testGroup "Matrix tests"
   ]
 
 matrixTests
-  :: forall k w v a. (Vect k v, Matrix k w v)
-  => (ElemConstraints k a, Show (w a), Eq (w a), Show (v a), Eq (v a), Show a, Eq a, Num a)
+  :: forall w v a. (Vect v, Matrix w v)
+  => (ElemConstraints v a, Show (w a), Eq (w a), Show (v a), Eq (v a), Show a, Eq a, Num a)
   => String
   -> Proxy w
   -> Proxy a
@@ -125,7 +125,7 @@ matrixTests name _ _ = testGroup name
     testMatrix3 = imat [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
 
 matrixMultiplicationTests
-  :: (Matrix k w v, ElemConstraints k a, Num a, Eq (w a), Show (w a))
+  :: (Matrix w v, ElemConstraints w a, Num a, Eq (w a), Show (w a))
   => String
   -> w a
   -> w a
@@ -164,8 +164,8 @@ unboxMatrixWithTransposeProxy = Proxy
 openBlasMatrixProxy :: Proxy OpenBlasMatrix
 openBlasMatrixProxy = Proxy
 
-ivec :: (ElemConstraints k a, Vect k v) => [a] -> v a
+ivec :: (ElemConstraints v a, Vect v) => [a] -> v a
 ivec = VC.fromList
 
-imat :: (ElemConstraints k a, Matrix k w v, Show a) => [[a]] -> w a
+imat :: (ElemConstraints w a, Matrix w v, Show a) => [[a]] -> w a
 imat = MC.fromList

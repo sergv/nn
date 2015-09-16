@@ -18,6 +18,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TupleSections              #-}
+{-# LANGUAGE TypeFamilies               #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -36,7 +37,12 @@ import Data.ConstrainedFunctor
 -- Other utils
 
 newtype Grad f a = Grad { getGrad :: f a }
-                 deriving (Show, Eq, Ord, ConstrainedFunctor k, Functor, Foldable, Traversable)
+                 deriving (Show, Eq, Ord, Functor, Foldable, Traversable)
+
+instance (ConstrainedFunctor f) => ConstrainedFunctor (Grad f) where
+  type (ElemConstraints (Grad f)) = ElemConstraints f
+  {-# INLINABLE cfmap #-}
+  cfmap f (Grad x) = Grad $ cfmap f x
 
 linspace :: Int -> Double -> Double -> [Double]
 linspace n low hi = map (\k -> low + fromIntegral k * delta) [0..n]

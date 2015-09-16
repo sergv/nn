@@ -26,11 +26,6 @@ import qualified Data.Aligned.Double.Foreign as DF
 import Data.Aligned.Float
 import qualified Data.Aligned.Float.Foreign as FF
 
-import Data.ConstrainedFunctor
-
-data AlignedConstraint
-type instance ElemConstraints AlignedConstraint = Aligned
-
 class (Storable a) => Aligned a where
   -- | Matrix-vector multiplication
   -- y = alpha * A * x + beta * y

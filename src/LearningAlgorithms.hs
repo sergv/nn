@@ -37,7 +37,7 @@ data ErrInfo a = ErrInfo
   deriving (Show, Eq, Ord)
 
 gradientDescentStep
-  :: forall k nn v. (ConstrainedFunctor k nn, NNVectorLike k nn Double, NeuralNetwork k nn v Double, ElemConstraints k Double)
+  :: forall nn v. (ConstrainedFunctor nn, NNVectorLike nn Double, NeuralNetwork nn v Double, ElemConstraints nn Double)
   => Double
   -> nn Double
   -> Vector (v Double, v Double)
@@ -50,7 +50,7 @@ gradientDescentStep alpha nn dataset =
     gradient'         = cfmap (* alpha) gradient
 
 gradientDescent
-  :: forall nn k v. (ConstrainedFunctor k nn, NNVectorLike k nn Double, NeuralNetwork k nn v Double, ElemConstraints k Double)
+  :: forall nn v. (ConstrainedFunctor nn, NNVectorLike nn Double, NeuralNetwork nn v Double, ElemConstraints nn Double)
   => Double
   -> nn Double
   -> Vector (v Double, v Double)
@@ -96,13 +96,13 @@ deriving instance (Ord (nn a)) => Ord (RPropState nn a)
 
 {-# INLINABLE rprop #-}
 rprop
-  :: forall k nn k' nn' v a.
+  :: forall nn nn' v a.
      -- (ConstrainedFunctor k nn, Zippable k nn,
      --  NNVectorLike k nn Double, NeuralNetwork k nn v Double)
-     (NNVectorLike k nn a, NeuralNetwork k nn v a, Convert k k' nn nn')
-  => (ElemConstraints k a)
-  => (ConstrainedFunctor k' nn', Zippable k' nn')
-  => (ElemConstraints k' a, ElemConstraints k' (V3 a))
+     (NNVectorLike nn a, NeuralNetwork nn v a, Convert nn nn')
+  => (ElemConstraints nn a)
+  => (ConstrainedFunctor nn', Zippable nn')
+  => (ElemConstraints nn' a, ElemConstraints nn' (V3 a))
   => (Num a, Ord a)
   => DeltaInfo a
   -> nn a
@@ -163,7 +163,7 @@ data IterateData nn s a = IterateData
   }
 
 iteratedUpdates
-  :: forall k nn s a. (NNVectorLike k nn a, ElemConstraints k a, Num a, Floating a, Ord a)
+  :: forall nn s a. (NNVectorLike nn a, ElemConstraints nn a, Num a, Floating a, Ord a)
   => IterateData nn s a
   -> ErrInfo a
   -> nn a

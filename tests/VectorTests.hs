@@ -36,7 +36,7 @@ tests = testGroup "Vector tests"
   ]
 
 vectorTests
-  :: forall k v a. (Vect k v, ElemConstraints k a, Show (v a), Eq (v a), Show a, Eq a, Num a)
+  :: forall v a. (Vect v, ElemConstraints v a, Show (v a), Eq (v a), Show a, Eq a, Num a)
   => String
   -> Proxy v
   -> Proxy a
@@ -74,5 +74,5 @@ vectorProxy = Proxy
 alignedStorableVectorProxy :: Proxy AlignedStorableVector
 alignedStorableVectorProxy = Proxy
 
-ivec :: (ElemConstraints k a, Vect k v) => [a] -> v a
+ivec :: (ElemConstraints v a, Vect v) => [a] -> v a
 ivec = VC.fromList
