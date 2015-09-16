@@ -17,7 +17,6 @@
 
 module Data.Aligned.Double
   ( AlignedDouble(..)
-  , IsAlignedDoubleConstraint
   , toAlignedDouble
   , fromAlignedDouble
   )
@@ -36,9 +35,6 @@ import Graphics.Rendering.Chart (PlotValue)
 newtype AlignedDouble = AlignedDouble
   { getAlignedDouble :: Double }
   deriving (Eq, Ord, Num, Fractional, Floating, NFData, PlotValue)
-
-data IsAlignedDoubleConstraint
-type instance ElemConstraints IsAlignedDoubleConstraint = (~) AlignedDouble
 
 instance Show AlignedDouble where
   show = show . getAlignedDouble

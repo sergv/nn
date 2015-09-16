@@ -17,7 +17,6 @@
 
 module Data.Aligned.Float
   ( AlignedFloat(..)
-  , IsAlignedFloatConstraint
   , toAlignedFloat
   , fromAlignedFloat
   )
@@ -36,9 +35,6 @@ import Graphics.Rendering.Chart (PlotValue)
 newtype AlignedFloat = AlignedFloat
   { getAlignedFloat :: Float }
   deriving (Eq, Ord, Num, Fractional, Floating, NFData, PlotValue)
-
-data IsAlignedFloatConstraint
-type instance ElemConstraints IsAlignedFloatConstraint = (~) AlignedFloat
 
 instance Show AlignedFloat where
   show = show . getAlignedFloat
