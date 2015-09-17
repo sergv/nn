@@ -44,20 +44,32 @@ vectorTests
 vectorTests name _ _ = testGroup name
   [ testCase "toList . fromList == id" $
     (VC.toList (VC.fromList [1, 2, 3, 4, 5] :: v a)) @?= [1, 2, 3, 4, 5]
-  , testCase "sum" $
+  , testCase "sum #1" $
     VC.sum testVector @?= 15
-  , testCase ".+." $
+  , testCase "sum #2" $
+    VC.sum testVectorLong @?= 55
+  , testCase ".+. #1" $
     testVector VC..+. testVector @?= ivec [2, 4, 6, 8, 10]
-  , testCase "addScaled" $
+  , testCase ".+. #2" $
+    testVectorLong VC..+. testVectorLong @?= ivec [2, 4, 6, 8, 10, 12, 14, 16, 18, 20]
+  , testCase "addScaled #1" $
     VC.addScaled testVector 2 testVector @?= ivec [3, 6, 9, 12, 15]
-  , testCase "length" $
+  , testCase "addScaled #2" $
+    VC.addScaled testVectorLong 2 testVectorLong @?= ivec [3, 6, 9, 12, 15, 18, 21, 24, 27, 30]
+  , testCase "length #1" $
     VC.length testVector @?= 5
-  , testCase "dot" $
+  , testCase "length #2" $
+    VC.length testVectorLong @?= 10
+  , testCase "dot #1" $
     VC.dot testVector testVector @?= 55
+  , testCase "dot #2" $
+    VC.dot testVectorLong testVectorLong @?= 385 -- (10 * (10 + 1) * (2 * 10 + 1)) `div` 6
   ]
   where
     testVector :: v a
     testVector = ivec [1, 2, 3, 4, 5]
+    testVectorLong :: v a
+    testVectorLong = ivec [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
 intProxy :: Proxy Int
 intProxy = Proxy
