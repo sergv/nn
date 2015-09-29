@@ -47,17 +47,17 @@ import Graphics.Rendering.Chart.Backend.Cairo
 
 import Data.Aligned.Double
 import Data.AlignedStorableVector (AlignedStorableVector(..))
-import Data.OpenBlasMatrix (OpenBlasMatrix)
-import Data.V3 (V3)
 import Data.ConstrainedConvert (Convert)
 import Data.ConstrainedFunctor
+import Data.Nonlinearity
+import Data.OpenBlasMatrix (OpenBlasMatrix)
+import Data.V3 (V3)
 import Data.VectClass (Vect)
 import qualified Data.VectClass as VC
 import Data.Zippable
 import LearningAlgorithms
 import NN
 import qualified NN.Generic as NG
-import Nonlinearity
 import Util
 
 
@@ -87,7 +87,7 @@ nnHiddenLayersSize = [10, 10]
 
 mkOpenBlasMatrixNN
   :: (Applicative m, MonadRandom m)
-  => m (NG.NN OpenBlasMatrix AlignedStorableVector HyperbolicTangent Nonlinear AlignedDouble)
+  => m (NG.NN OpenBlasMatrix AlignedStorableVector HyperbolicTangent HyperbolicTangent AlignedDouble)
 mkOpenBlasMatrixNN = NG.makeNN 1 nnHiddenLayersSize 1 (AlignedDouble <$> sample stdNormal)
 
 main :: IO ()

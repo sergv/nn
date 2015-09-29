@@ -51,10 +51,11 @@ import qualified Data.ConstrainedConvert as Conv
 import Data.ConstrainedFunctor
 import Data.MatrixClass (Matrix, (|+|))
 import qualified Data.MatrixClass as MC
+import Data.Nonlinearity
+import Data.SpecialisedFunction
 import Data.VectClass (Vect, (.+.))
 import qualified Data.VectClass as VC
 import Data.Zippable
-import Nonlinearity
 import Util
 
 import Data.Aligned.Double (AlignedDouble)
@@ -244,7 +245,6 @@ makeNN
   :: forall m n o w v a. (Monad m, Show a)
   => (Matrix w v, Vect v)
   => (ElemConstraints v ~ ElemConstraints w, ElemConstraints w a)
-  => (Nonlinearity n, OutputType o n)
   => Int
   -> [Int]
   -> Int
@@ -255,15 +255,15 @@ makeNN inputLayerSize hiddenLayerSizes finalLayerSize mkElem =
   makeWeightList inputLayerSize hiddenLayerSizes finalLayerSize mkElem
 
 forwardPropagate
-  :: forall w v a n o. (Matrix w v, Floating a, Nonlinearity n, OutputType o n)
+  :: forall w v a n o. (Matrix w v, Floating a, Nonlinearity n, Nonlinearity o)
   => (Vect v, ConstrainedFunctor v)
   => (ElemConstraints v ~ ElemConstraints w, ElemConstraints w a)
   => NN w v n o a
   -> v a
   -> v a
 forwardPropagate nn@(NN hiddenLayers finalLayer) input =
-  f (output nn)
-    (V.foldl' (f (nonlinearity nn)) input hiddenLayers)
+  f (nonlinearity (OutputProxy nn))
+    (V.foldl' (f (nonlinearity (NonlinearityProxy nn))) input hiddenLayers)
     finalLayer
   where
     f :: (a -> a) -> v a -> (v a, w a) -> v a
@@ -273,7 +273,7 @@ forwardPropagate nn@(NN hiddenLayers finalLayer) input =
 targetFunction
   :: (Matrix w v, Vect v, ConstrainedFunctor v, Floating a)
   => (ElemConstraints v ~ ElemConstraints w, ElemConstraints w a)
-  => (Nonlinearity n, OutputType o n)
+  => (Nonlinearity n, Nonlinearity o)
   => Vector (v a, v a)
   -> NN w v n o a
   -> a
@@ -286,7 +286,7 @@ targetFunction dataset nn =
 targetFunctionGrad
   :: forall w v n o a. (Matrix w v, Traversable w, ElemConstraints w ~ IdConstraint)
   => (Vect v, ConstrainedFunctor v, Traversable v, ElemConstraints v ~ IdConstraint)
-  => (Nonlinearity n, OutputType o n)
+  => (Nonlinearity n, Nonlinearity o)
   => (Floating a)
   => Vector (v a, v a)
   -> NN w v n o a
@@ -333,8 +333,9 @@ splitDataset n xs =
 backprop
   :: forall w v n o a. (Matrix w v, ConstrainedFunctor w, Zippable w)
   => (Vect v, ConstrainedFunctor v)
-  => (Floating a, ElemConstraints (NN w v n o) a, {-ElemConstraints w a,-} ElemConstraints v a)
-  => (Nonlinearity n, OutputType o n)
+  => (Floating a, ElemConstraints (NN w v n o) a)
+  => (SpecialisedFunction (FuncWithDeriv n) (w a) (w a, w a))
+  => (SpecialisedFunction (FuncWithDeriv o) (w a) (w a, w a))
   => (Show a)
   => Int
   -> Vector (v a, v a)
@@ -489,20 +490,28 @@ backprop chunkSize dataset
 
         f :: (w a, b, c) -> (w a, w a) -> (w a, w a, w a)
         f (prevLayer, _prevLayerDeriv, _prevWeights) (bias, weights) =
-          (cfmap (nonlinearity nn) ss, cfmap (nonlinearityDeriv nn) ss, weights)
+          (nonlin, nonlinDeriv, weights)
+          -- (cfmap (nonlinearity nn) ss, cfmap (nonlinearityDeriv nn) ss, weights)
           where
+            ss :: w a
             ss = bias |+| MC.matrixMult weights prevLayer
+            (nonlin, nonlinDeriv) = sfmap nnNonlinDerivProxy ss
 
         g :: (w a, b, c) -> (w a, w a) -> (w a, w a)
         g (prevLayer, _prevLayerDeriv, _) (bias, layer) =
-          (cfmap (output nn) ss, cfmap (outputDeriv nn) ss)
+          sfmap nnOutputDerivProxy ss
+          -- (cfmap (output nn) ss, cfmap (outputDeriv nn) ss)
           where
             ss = bias |+| MC.matrixMult layer prevLayer
+            -- (output, outputDeriv) = sfmap nnOutputDerivProxy ss
+
+        nnNonlinDerivProxy = addFuncWithDerivInProxy $ NonlinearityProxy nn
+        nnOutputDerivProxy = addFuncWithDerivInProxy $ OutputProxy nn
 
 targetFunctionGradNumerical
   :: forall w v n o a. (Matrix w v, Functor w, Traversable w, ElemConstraints w a, ElemConstraints w ~ IdConstraint)
   => (Vect v, ConstrainedFunctor v, Traversable v, ElemConstraints v ~ IdConstraint)
-  => (Nonlinearity n, OutputType o n, Floating a)
+  => (Nonlinearity n, Nonlinearity o, Floating a)
   => a
   -> Vector (v a, v a)
   -> NN w v n o a
@@ -530,10 +539,21 @@ targetFunctionGradNumerical epsilon dataset nn =
           | otherwise = y
 
 
-instance forall w v n o a. (Pretty (w a), Vect v, ElemConstraints v a, Show a, Nonlinearity n, OutputType o n) => Pretty (NN w v n o a) where
+instance forall w v n o a.
+         ( Pretty (w a)
+         , Vect v
+         , ElemConstraints v a
+         , Show a
+         , Nonlinearity n
+         , Nonlinearity o
+         , PrettyProxy n
+         , PrettyProxy o
+         )
+         =>
+         Pretty (NN w v n o a) where
   pretty nn@(NN hiddenLayers finalLayer) =
-    "Nonlinearity: " <> ppNonlinearity nn <> PP.line <>
-    "Output: "       <> ppOutput nn       <> PP.line <>
+    "Nonlinearity: " <> prettyProxy (NonlinearityProxy nn) <> PP.line <>
+    "Output: "       <> prettyProxy (OutputProxy nn)       <> PP.line <>
     "HiddenLayers: " <> (PP.hcat $
                          PP.punctuate (PP.line <> PP.line) $
                          V.toList $

@@ -21,6 +21,7 @@ module Main where
 import Control.Arrow
 import Control.Monad.State
 import Data.Monoid
+import qualified Data.Text.Lazy as T
 import Data.Vector (Vector)
 import qualified Data.Vector as V
 import qualified Data.Vector.Unboxed as U
@@ -30,20 +31,19 @@ import qualified Text.PrettyPrint.Leijen.Text as PP
 import Data.Aligned.Double
 import Data.AlignedStorableVector (AlignedStorableVector)
 import qualified Data.AlignedStorableVector as ASV
+import Data.ConstrainedFunctor
 import Data.MatrixDouble (MatrixDouble)
+import Data.Nonlinearity
 import Data.OpenBlasMatrix (OpenBlasMatrix)
 import Data.PureMatrix (PureMatrix)
 import Data.VectorDouble (VectorDouble)
 import Data.UnboxMatrix (UnboxMatrix)
 import Data.UnboxMatrixWithTranspose (UnboxMatrixWithTranspose)
 import qualified Data.VectorDouble as VD
-import qualified Data.Text.Lazy as T
-import Data.ConstrainedFunctor
 import NN (NNVectorLike)
 import qualified NN
 import qualified NN.Specific as S
 import qualified NN.Generic as G
-import Nonlinearity
 import Util
 
 import Test.Tasty
@@ -301,25 +301,25 @@ compareGradientsFromDifferentSources name mkInput inputLayerSize hiddenLayers fi
 epsilon :: Double
 epsilon = 1e-6
 
-makeSpecificNN :: Int -> [Int] -> Int -> State PureMT (S.NN HyperbolicTangent Nonlinear Double)
+makeSpecificNN :: Int -> [Int] -> Int -> State PureMT (S.NN HyperbolicTangent HyperbolicTangent Double)
 makeSpecificNN inputLayerSize hiddenLayerSizes finalLayerSize =
   S.makeNN inputLayerSize hiddenLayerSizes finalLayerSize (sample stdNormal)
-makeGenericVectorNN :: Int -> [Int] -> Int -> State PureMT (G.NN (PureMatrix Vector) Vector HyperbolicTangent Nonlinear Double)
+makeGenericVectorNN :: Int -> [Int] -> Int -> State PureMT (G.NN (PureMatrix Vector) Vector HyperbolicTangent HyperbolicTangent Double)
 makeGenericVectorNN inputLayerSize hiddenLayerSizes finalLayerSize =
   G.makeNN inputLayerSize hiddenLayerSizes finalLayerSize (sample stdNormal)
-makeGenericListNN :: Int -> [Int] -> Int -> State PureMT (G.NN (PureMatrix []) [] HyperbolicTangent Nonlinear Double)
+makeGenericListNN :: Int -> [Int] -> Int -> State PureMT (G.NN (PureMatrix []) [] HyperbolicTangent HyperbolicTangent Double)
 makeGenericListNN inputLayerSize hiddenLayerSizes finalLayerSize =
   G.makeNN inputLayerSize hiddenLayerSizes finalLayerSize (sample stdNormal)
-makeUnboxedDoubleNN :: Int -> [Int] -> Int -> State PureMT (G.NN MatrixDouble VectorDouble HyperbolicTangent Nonlinear Double)
+makeUnboxedDoubleNN :: Int -> [Int] -> Int -> State PureMT (G.NN MatrixDouble VectorDouble HyperbolicTangent HyperbolicTangent Double)
 makeUnboxedDoubleNN inputLayerSize hiddenLayerSizes finalLayerSize =
   G.makeNN inputLayerSize hiddenLayerSizes finalLayerSize (sample stdNormal)
-makeUnboxMatrixNN :: Int -> [Int] -> Int -> State PureMT (G.NN UnboxMatrix U.Vector HyperbolicTangent Nonlinear Double)
+makeUnboxMatrixNN :: Int -> [Int] -> Int -> State PureMT (G.NN UnboxMatrix U.Vector HyperbolicTangent HyperbolicTangent Double)
 makeUnboxMatrixNN inputLayerSize hiddenLayerSizes finalLayerSize =
   G.makeNN inputLayerSize hiddenLayerSizes finalLayerSize (sample stdNormal)
-makeUnboxMatrixWithTransposeNN :: Int -> [Int] -> Int -> State PureMT (G.NN UnboxMatrixWithTranspose U.Vector HyperbolicTangent Nonlinear Double)
+makeUnboxMatrixWithTransposeNN :: Int -> [Int] -> Int -> State PureMT (G.NN UnboxMatrixWithTranspose U.Vector HyperbolicTangent HyperbolicTangent Double)
 makeUnboxMatrixWithTransposeNN inputLayerSize hiddenLayerSizes finalLayerSize =
   G.makeNN inputLayerSize hiddenLayerSizes finalLayerSize (sample stdNormal)
-makeOpenBlasMatrixNN :: Int -> [Int] -> Int -> State PureMT (G.NN OpenBlasMatrix AlignedStorableVector HyperbolicTangent Nonlinear AlignedDouble)
+makeOpenBlasMatrixNN :: Int -> [Int] -> Int -> State PureMT (G.NN OpenBlasMatrix AlignedStorableVector HyperbolicTangent HyperbolicTangent AlignedDouble)
 makeOpenBlasMatrixNN inputLayerSize hiddenLayerSizes finalLayerSize =
   G.makeNN inputLayerSize hiddenLayerSizes finalLayerSize (AlignedDouble <$> sample stdNormal)
 

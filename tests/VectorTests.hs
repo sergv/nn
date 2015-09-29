@@ -11,6 +11,7 @@
 --
 ----------------------------------------------------------------------------
 
+{-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies        #-}
 
@@ -25,18 +26,23 @@ import Data.Aligned.Double (AlignedDouble)
 import Data.Aligned.Float (AlignedFloat)
 import Data.AlignedStorableVector (AlignedStorableVector)
 import Data.ConstrainedFunctor
+import Data.Nonlinearity
+import Data.SpecialisedFunction
 import Data.VectClass (Vect)
 import qualified Data.VectClass as VC
 
 tests :: TestTree
 tests = testGroup "Vector tests"
-  [ vectorTests "Data.Vector" vectorProxy intProxy
+  [ vectorTests "Data.Vector" vectorProxy doubleProxy
   , vectorTests "Data.AlignedStorableVector, Double" alignedStorableVectorProxy alignedDoubleProxy
   , vectorTests "Data.AlignedStorableVector, Float" alignedStorableVectorProxy alignedFloatProxy
   ]
 
 vectorTests
-  :: forall v a. (Vect v, ElemConstraints v a, Show (v a), Eq (v a), Show a, Eq a, Num a)
+  :: forall v a. (Vect v, ElemConstraints v a, Show (v a), Eq (v a))
+  => (Show a, Eq a, Num a, Floating a)
+  => (ConstrainedFunctor v)
+  => (SpecialisedFunction Exp (v a) (v a))
   => String
   -> Proxy v
   -> Proxy a
@@ -64,6 +70,8 @@ vectorTests name _ _ = testGroup name
     VC.dot testVector testVector @?= 55
   , testCase "dot #2" $
     VC.dot testVectorLong testVectorLong @?= 385 -- (10 * (10 + 1) * (2 * 10 + 1)) `div` 6
+  , testCase "exp #1" $
+    sfmap expProxy testVector @?= ivec (map exp $ VC.toList testVector)
   ]
   where
     testVector :: v a
@@ -71,8 +79,8 @@ vectorTests name _ _ = testGroup name
     testVectorLong :: v a
     testVectorLong = ivec [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
-intProxy :: Proxy Int
-intProxy = Proxy
+doubleProxy :: Proxy Double
+doubleProxy = Proxy
 
 alignedFloatProxy :: Proxy AlignedFloat
 alignedFloatProxy = Proxy
@@ -82,6 +90,9 @@ alignedDoubleProxy = Proxy
 
 vectorProxy :: Proxy Vector
 vectorProxy = Proxy
+
+expProxy :: Proxy Exp
+expProxy = Proxy
 
 alignedStorableVectorProxy :: Proxy AlignedStorableVector
 alignedStorableVectorProxy = Proxy

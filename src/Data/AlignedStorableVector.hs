@@ -15,6 +15,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE UndecidableInstances       #-}
 
 module Data.AlignedStorableVector
   ( AlignedStorableVector(..)
@@ -40,6 +41,8 @@ import qualified Data.Aligned as Aligned
 import Data.ConstrainedConvert (Convert)
 import qualified Data.ConstrainedConvert as Conv
 import Data.ConstrainedFunctor
+import Data.Nonlinearity
+import Data.SpecialisedFunction
 import Data.VectClass (Vect, (.+.))
 import qualified Data.VectClass as VC
 import Data.Zippable
@@ -85,6 +88,7 @@ instance Vect AlignedStorableVector where
   {-# INLINABLE reverse    #-}
   {-# INLINABLE length     #-}
   {-# INLINABLE replicateM #-}
+  {-# INLINABLE dot        #-}
   fromList        = AlignedStorableVector . S.fromList
   toList          = S.toList . getAlignedStorableVector
   singleton       = AlignedStorableVector . S.singleton
@@ -135,15 +139,6 @@ instance Vect AlignedStorableVector where
       S.unsafeWith xs $ \xsPtr ->
         S.unsafeWith ys $ \ysPtr ->
           Aligned.dotProduct (S.length xs) xsPtr ysPtr
-  exp (AlignedStorableVector xs) =
-    unsafePerformIO $ do
-      result <- SM.unsafeNew n
-      S.unsafeWith xs $ \xsPtr ->
-        SM.unsafeWith result $ \resultPtr ->
-          Aligned.mapExp n xsPtr resultPtr
-      AlignedStorableVector <$> S.freeze result
-    where
-      n = S.length xs
 
 {-# INLINABLE concat #-}
 concat

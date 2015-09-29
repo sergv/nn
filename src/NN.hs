@@ -25,11 +25,12 @@ import Data.Vector (Vector)
 
 import Data.ConstrainedFunctor
 import qualified Data.MatrixClass as MC
+import Data.Nonlinearity
+import Data.SpecialisedFunction
 import qualified Data.VectClass as VC
 import Data.Zippable
 import qualified NN.Generic as G
 import qualified NN.Specific as S
-import Nonlinearity
 import Util
 
 class (ConstrainedFunctor nn) => NNVectorLike (nn :: * -> *) a where
@@ -47,7 +48,7 @@ class (ConstrainedFunctor nn) => NeuralNetwork (nn :: * -> *) (v :: * -> *) a | 
   forwardPropagate   :: (ElemConstraints nn a) => nn a -> v a -> v a
   targetFunctionGrad :: (ElemConstraints nn a) => Vector (v a, v a) -> nn a -> (a, Grad nn a)
 
-instance (Nonlinearity n, OutputType o n, Floating a, Show a) => NNVectorLike (S.NN n o) a where
+instance (Nonlinearity n, Nonlinearity o, Floating a, Show a) => NNVectorLike (S.NN n o) a where
   fromWeightList = S.fromWeightList
   toWeightList   = S.toWeightList
   addScaled      = S.addScaled
@@ -55,13 +56,13 @@ instance (Nonlinearity n, OutputType o n, Floating a, Show a) => NNVectorLike (S
   differenceSize = S.differenceSize
   make           = S.makeNN
 
-instance (Nonlinearity n, OutputType o n, Floating a, Show a) => NeuralNetwork (S.NN n o) Vector a where
+instance (Nonlinearity n, Nonlinearity o, Floating a, Show a) => NeuralNetwork (S.NN n o) Vector a where
   forwardPropagate   = S.forwardPropagate
   targetFunctionGrad = S.targetFunctionGrad -- S.backprop -- S.targetFunctionGrad
 
 
 instance ( Nonlinearity n
-         , OutputType o n
+         , Nonlinearity o
          , MC.Matrix w v
          , VC.Vect v
          , Zippable w
@@ -78,7 +79,7 @@ instance ( Nonlinearity n
   make           = G.makeNN
 
 instance ( Nonlinearity n
-         , OutputType o n
+         , Nonlinearity o
          , MC.Matrix w v
          , VC.Vect v
          , ConstrainedFunctor w
@@ -86,6 +87,8 @@ instance ( Nonlinearity n
          , Zippable w
          , Floating a
          , Show a
+         , SpecialisedFunction (FuncWithDeriv n) (w a) (w a, w a)
+         , SpecialisedFunction (FuncWithDeriv o) (w a) (w a, w a)
          )
          => NeuralNetwork (G.NN w v n o) v a where
   forwardPropagate   = G.forwardPropagate

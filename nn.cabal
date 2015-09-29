@@ -20,9 +20,16 @@ library
                        Data.ConstrainedConvert
                        Data.ConstrainedFunctor
                        Data.MatrixDouble
+                       Data.Nonlinearity
+                       Data.Nonlinearity.Exp
+                       Data.Nonlinearity.HyperbolicTangent
+                       Data.Nonlinearity.Internal
+                       Data.Nonlinearity.Linear
+                       Data.Nonlinearity.Sigmoid
                        Data.OpenBlasEnums
                        Data.OpenBlasMatrix
                        Data.PureMatrix
+                       Data.SpecialisedFunction
                        Data.StorableMatrixWithTranspose
                        Data.V3
                        Data.VectClass
@@ -35,7 +42,6 @@ library
                        NN
                        NN.Generic
                        NN.Specific
-                       Nonlinearity
                        Util
   build-depends:       base >=4.6, text, mtl, vector, random,
                        reflection, ad, random-source, random-fu, free, deepseq,

@@ -42,7 +42,9 @@ import qualified Data.AlignedStorableVector as ASV
 import Data.ConstrainedConvert (Convert)
 import qualified Data.ConstrainedConvert as Conv
 import Data.ConstrainedFunctor
+import Data.Nonlinearity
 import Data.OpenBlasEnums
+import Data.SpecialisedFunction
 import Data.StorableMatrixWithTranspose (StorableMatrixWithTranspose(..))
 import Data.MatrixClass
 import qualified Data.VectClass as VC
@@ -101,15 +103,19 @@ instance Convert OpenBlasMatrix StorableMatrixWithTranspose where
     OpenBlasMatrix wRows wCols ws
 
 instance Matrix OpenBlasMatrix AlignedStorableVector where
-  {-# INLINABLE rows         #-}
-  {-# INLINABLE columns      #-}
-  {-# INLINABLE outerProduct #-}
-  {-# INLINABLE vecMulRight  #-}
-  {-# INLINABLE transpose    #-}
-  {-# INLINABLE matrixMult   #-}
-  {-# INLINABLE (|+|)        #-}
-  {-# INLINABLE addScaled    #-}
-  {-# INLINABLE sumColumns   #-}
+  {-# INLINABLE rows                        #-}
+  {-# INLINABLE columns                     #-}
+  {-# INLINABLE outerProduct                #-}
+  {-# INLINABLE vecMulRight                 #-}
+  {-# INLINABLE transpose                   #-}
+  {-# INLINABLE matrixMult                  #-}
+  {-# INLINABLE (|+|)                       #-}
+  {-# INLINABLE addScaled                   #-}
+  {-# INLINABLE sumColumns                  #-}
+  {-# INLINABLE sum                         #-}
+  {-# INLINABLE matrixMultByTransposedLeft  #-}
+  {-# INLINABLE matrixMultByTransposedRight #-}
+  {-# INLINABLE normL2Square                #-}
   fromList [] =
     error "OpenBlasMatrix.fromList: cannot create PureMatrix from empty list of rows"
   fromList wss@(ws:_)
@@ -318,15 +324,6 @@ instance Matrix OpenBlasMatrix AlignedStorableVector where
   normL2Square (OpenBlasMatrix _ _ xs) = VC.dot xs' xs'
     where
       xs' = AlignedStorableVector xs
-  exp (OpenBlasMatrix rows cols xs) =
-    unsafePerformIO $ do
-      result <- SM.unsafeNew n
-      S.unsafeWith xs $ \xsPtr ->
-        SM.unsafeWith result $ \resultPtr ->
-          Aligned.mapExp n xsPtr resultPtr
-      OpenBlasMatrix rows cols <$> S.freeze result
-    where
-      n = rows *! cols
 
 {-# INLINABLE transposeMatrixData #-}
 transposeMatrixData
