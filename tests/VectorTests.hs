@@ -11,13 +11,16 @@
 --
 ----------------------------------------------------------------------------
 
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeFamilies        #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE UndecidableInstances       #-}
 
 module VectorTests (tests) where
 
 import Data.Vector (Vector)
+import qualified Data.Vector.Storable as S
 import Data.Proxy
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -31,18 +34,22 @@ import Data.SpecialisedFunction
 import Data.VectClass (Vect)
 import qualified Data.VectClass as VC
 
+import TestUtils
+
 tests :: TestTree
 tests = testGroup "Vector tests"
   [ vectorTests "Data.Vector" vectorProxy doubleProxy
-  , vectorTests "Data.AlignedStorableVector, Double" alignedStorableVectorProxy alignedDoubleProxy
   , vectorTests "Data.AlignedStorableVector, Float" alignedStorableVectorProxy alignedFloatProxy
+  , vectorTests "Data.AlignedStorableVector, Double" alignedStorableVectorProxy alignedDoubleProxy
   ]
 
 vectorTests
   :: forall v a. (Vect v, ElemConstraints v a, Show (v a), Eq (v a))
   => (Show a, Eq a, Num a, Floating a)
-  => (ConstrainedFunctor v)
+  => (Show (v (ApproxRelEqFloating a)), Eq (v (ApproxRelEqFloating a)))
+  => (ElemConstraints v (ApproxRelEqFloating a))
   => (SpecialisedFunction Exp (v a) (v a))
+  => (ConstrainedFunctor v)
   => String
   -> Proxy v
   -> Proxy a
@@ -71,7 +78,9 @@ vectorTests name _ _ = testGroup name
   , testCase "dot #2" $
     VC.dot testVectorLong testVectorLong @?= 385 -- (10 * (10 + 1) * (2 * 10 + 1)) `div` 6
   , testCase "exp #1" $
-    sfmap expProxy testVector @?= ivec (map exp $ VC.toList testVector)
+    sfmap expProxy testVector @?~ cfmap exp testVector
+  , testCase "exp #2" $
+    sfmap expProxy testVectorLong @?~ cfmap exp testVectorLong
   ]
   where
     testVector :: v a
@@ -79,23 +88,8 @@ vectorTests name _ _ = testGroup name
     testVectorLong :: v a
     testVectorLong = ivec [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
-doubleProxy :: Proxy Double
-doubleProxy = Proxy
-
-alignedFloatProxy :: Proxy AlignedFloat
-alignedFloatProxy = Proxy
-
-alignedDoubleProxy :: Proxy AlignedDouble
-alignedDoubleProxy = Proxy
-
 vectorProxy :: Proxy Vector
 vectorProxy = Proxy
 
-expProxy :: Proxy Exp
-expProxy = Proxy
-
 alignedStorableVectorProxy :: Proxy AlignedStorableVector
 alignedStorableVectorProxy = Proxy
-
-ivec :: (ElemConstraints v a, Vect v) => [a] -> v a
-ivec = VC.fromList

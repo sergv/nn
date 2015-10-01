@@ -140,6 +140,22 @@ instance Vect AlignedStorableVector where
         S.unsafeWith ys $ \ysPtr ->
           Aligned.dotProduct (S.length xs) xsPtr ysPtr
 
+instance
+  (ElemConstraints AlignedStorableVector a)
+  =>
+  SpecialisedFunction Exp (AlignedStorableVector a) (AlignedStorableVector a)
+  where
+  {-# INLINABLE sfmap #-}
+  sfmap _ (AlignedStorableVector xs) =
+    unsafePerformIO $ do
+      result <- SM.unsafeNew n
+      S.unsafeWith xs $ \xsPtr ->
+        SM.unsafeWith result $ \resultPtr ->
+          Aligned.mapExp n xsPtr resultPtr
+      AlignedStorableVector <$> S.freeze result
+    where
+      n = S.length xs
+
 {-# INLINABLE concat #-}
 concat
   :: (ElemConstraints AlignedStorableVector a)

@@ -23,10 +23,11 @@ module Data.Aligned.Double
 where
 
 import Control.DeepSeq
+import Data.Proxy
 import Foreign
 import Text.PrettyPrint.Leijen.Text (Pretty(..))
 
-import Data.ConstrainedFunctor
+import Data.Eps
 
 import Graphics.Rendering.Chart (PlotValue)
 
@@ -34,7 +35,11 @@ import Graphics.Rendering.Chart (PlotValue)
 
 newtype AlignedDouble = AlignedDouble
   { getAlignedDouble :: Double }
-  deriving (Eq, Ord, Num, Fractional, Floating, NFData, PlotValue)
+  deriving (Eq, Ord, Num, Fractional, Floating, Real, RealFrac, RealFloat, NFData, PlotValue)
+
+instance Eps AlignedDouble where
+  {-# INLINE getEps #-}
+  getEps _ = AlignedDouble $ getEps (Proxy :: Proxy Double)
 
 instance Show AlignedDouble where
   show = show . getAlignedDouble

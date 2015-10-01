@@ -157,7 +157,8 @@ double dot(unsigned int n,
 #define EXP_P6_F 1.304379315115511417388916015625e-3f
 #define EXP_P7_F 2.7555381529964506626129150390625e-4f
 
-#define FMA_F(c, x, rest) FMA_F_LOADED(x, rest, _mm256_set1_ps(c))
+/* x * rest + c */
+#define FMA_F(c, x, rest) FMA_F_LOADED(_mm256_set1_ps(c), x, rest)
 #define FMA_F_LOADED(c, x, rest) _mm256_fmadd_ps(x, rest, c)
 #define FMA_F_END(c) _mm256_set1_ps(c)
 
@@ -179,7 +180,6 @@ __m256 simd_expf(__m256 x)
         const __m256 mask = _mm256_and_ps(_mm256_cmp_ps(tmp, fx, _CMP_GT_OQ), one);
         const __m256 fx_rounded = _mm256_sub_ps(tmp, mask);
 
-
         const __m256 x_reduced = _mm256_sub_ps(
                                    _mm256_sub_ps(x,
                                                  _mm256_mul_ps(fx_rounded,
@@ -196,16 +196,16 @@ __m256 simd_expf(__m256 x)
                        FMA_F_LOADED(one,
                                     x_reduced,
                                     FMA_F(EXP_P2_F,
-                                            x_reduced,
-                                            FMA_F(EXP_P3_F,
-                                                  x_reduced,
-                                                  FMA_F(EXP_P4_F,
-                                                        x_reduced,
-                                                        FMA_F(EXP_P5_F,
-                                                              x_reduced,
-                                                              FMA_F(EXP_P6_F,
-                                                                    x_reduced,
-                                                                    FMA_F_END(EXP_P7_F))))))));
+                                          x_reduced,
+                                          FMA_F(EXP_P3_F,
+                                                x_reduced,
+                                                FMA_F(EXP_P4_F,
+                                                      x_reduced,
+                                                      FMA_F(EXP_P5_F,
+                                                            x_reduced,
+                                                            FMA_F(EXP_P6_F,
+                                                                  x_reduced,
+                                                                  FMA_F_END(EXP_P7_F))))))));
 
         __m256 pow2n =
           _mm256_castsi256_ps(
@@ -214,33 +214,38 @@ __m256 simd_expf(__m256 x)
                 _mm256_cvttps_epi32(fx_rounded),
                 _mm256_set1_epi32(0x7f)), // 127
               23));
+
         return _mm256_mul_ps(y, pow2n);
 }
 
-void map_expf(unsigned int n,
-              const float_aligned * __restrict xs,
-              float_aligned * __restrict ys)
-{
-        unsigned int i = 0, j = 0;
-        const unsigned int m  = n >> 3;
-        const unsigned int m8 = m << 3;
-        for (i = 0; i < m; i++) {
-                __m256 x = _mm256_load_ps(&xs[i * 8]);
-                _mm256_store_ps(&ys[i * 8], simd_expf(x));
+#define MAP_FUNC_FLOAT(NAME, SIMD_FUNC)                                 \
+        void NAME(unsigned int n,                                       \
+                  const float_aligned * __restrict xs,                  \
+                  float_aligned * __restrict ys)                        \
+        {                                                               \
+                unsigned int i = 0, j = 0;                              \
+                const unsigned int m  = n >> 3;                         \
+                const unsigned int m8 = m << 3;                         \
+                for (i = 0; i < m; i++) {                               \
+                        __m256 x = _mm256_load_ps(&xs[i * 8]);          \
+                        _mm256_store_ps(&ys[i * 8], SIMD_FUNC(x));      \
+                }                                                       \
+                                                                        \
+                float leftover[8] FLOAT_ALIGNED = { 0, 0, 0, 0, 0, 0, 0, 0 }; \
+                for (i = m8, j = 0; i < n; i++, j++) {                  \
+                        leftover[j] = xs[i];                            \
+                }                                                       \
+                                                                        \
+                const __m256 x = SIMD_FUNC(_mm256_load_ps(leftover));   \
+                _mm256_store_ps(leftover, x);                           \
+                                                                        \
+                for (i = m8, j = 0; i < n; i++, j++) {                  \
+                        ys[i] = leftover[j];                            \
+                }                                                       \
         }
 
-        float leftover[8] FLOAT_ALIGNED = { 0, 0, 0, 0, 0, 0, 0, 0 };
-        for (i = m8, j = 0; i < n; i++, j++) {
-                leftover[j] = xs[i];
-        }
+MAP_FUNC_FLOAT(map_expf, simd_expf)
 
-        const __m256 x = simd_expf(_mm256_load_ps(leftover));
-        _mm256_store_ps(leftover, x);
-
-        for (i = m8, j = 0; i < n; i++, j++) {
-                ys[i] = leftover[j];
-        }
-}
 
 #define EXP_HI_D 7.08396418532264106224E2     /* log (2**1022) */
 #define EXP_LO_D -7.08396418532264106224E2    /* log (2**-1022) */
@@ -275,7 +280,7 @@ void map_expf(unsigned int n,
 //                                              x * (2.56230990287284038811301467228331851799794094404206e-7 +
 //                                                   x * 3.5294625005568410117034257485191250935940843191929e-8))))))))))
 
-#define FMA_D(c, x, rest) FMA_D_LOADED(x, rest, _mm256_set1_pd(c))
+#define FMA_D(c, x, rest) FMA_D_LOADED(_mm256_set1_pd(c), x, rest)
 #define FMA_D_LOADED(c, x, rest) _mm256_fmadd_pd(x, rest, c)
 #define FMA_D_END(c) _mm256_set1_pd(c)
 
@@ -297,7 +302,6 @@ __m256d simd_exp(__m256d x)
         const __m256d mask = _mm256_and_pd(_mm256_cmp_pd(tmp, fx, _CMP_GT_OQ), one);
         const __m256d fx_rounded = _mm256_sub_pd(tmp, mask);
 
-
         const __m256d x_reduced = _mm256_sub_pd(
                                    _mm256_sub_pd(x,
                                                  _mm256_mul_pd(fx_rounded,
@@ -308,31 +312,31 @@ __m256d simd_exp(__m256d x)
         //                 _mm256_set1_pd(EXP_C1_F),
         //                 z);
 
-
         const __m256d y =
-          FMA_D_LOADED(one,
-                       x_reduced,
-                       FMA_D(EXP_P1_D,
-                             x_reduced,
-                             FMA_D(EXP_P2_D,
-                                   x_reduced,
-                                   FMA_D(EXP_P3_D,
-                                         x_reduced,
-                                         FMA_D(EXP_P4_D,
-                                               x_reduced,
-                                               FMA_D(EXP_P5_D,
-                                                     x_reduced,
-                                                     FMA_D(EXP_P6_D,
-                                                           x_reduced,
-                                                           FMA_D(EXP_P7_D,
-                                                                 x_reduced,
-                                                                 FMA_D(EXP_P8_D,
-                                                                       x_reduced,
-                                                                       FMA_D(EXP_P9_D,
-                                                                             x_reduced,
-                                                                             FMA_D(EXP_P10_D,
-                                                                                   x_reduced,
-                                                                                   FMA_D_END(EXP_P11_D))))))))))));
+          FMA_D_LOADED(
+            one,
+            x_reduced,
+            FMA_D(EXP_P1_D,
+                  x_reduced,
+                  FMA_D(EXP_P2_D,
+                        x_reduced,
+                        FMA_D(EXP_P3_D,
+                              x_reduced,
+                              FMA_D(EXP_P4_D,
+                                    x_reduced,
+                                    FMA_D(EXP_P5_D,
+                                          x_reduced,
+                                          FMA_D(EXP_P6_D,
+                                                x_reduced,
+                                                FMA_D(EXP_P7_D,
+                                                      x_reduced,
+                                                      FMA_D(EXP_P8_D,
+                                                            x_reduced,
+                                                            FMA_D(EXP_P9_D,
+                                                                  x_reduced,
+                                                                  FMA_D(EXP_P11_D,
+                                                                        x_reduced,
+                                                                        FMA_D_END(EXP_P10_D))))))))))));
 
         const __m256i n = _mm256_cvtepi32_epi64(_mm256_cvttpd_epi32(fx_rounded));
         const __m256d pow2n =
@@ -343,31 +347,32 @@ __m256d simd_exp(__m256d x)
                 _mm256_set1_epi64x(0x3ff)), // 1023
               52));
         return _mm256_mul_pd(y, pow2n);
-
 }
 
-void map_exp(unsigned int n,
-          const double_aligned * __restrict xs,
-          double_aligned * __restrict ys)
-{
-        unsigned int i = 0, j = 0;
-        const unsigned int m  = n >> 2;
-        const unsigned int m8 = m << 2;
-        for (i = 0; i < m; i++) {
-                __m256d x = _mm256_load_pd(&xs[i * 4]);
-                _mm256_store_pd(&ys[i * 4], simd_exp(x));
+#define MAP_FUNC_DOUBLE(NAME, SIMD_FUNC)                                \
+        void NAME(unsigned int n,                                       \
+                  const double_aligned * __restrict xs,                 \
+                  double_aligned * __restrict ys)                       \
+        {                                                               \
+                unsigned int i = 0, j = 0;                              \
+                const unsigned int m  = n >> 2;                         \
+                const unsigned int m8 = m << 2;                         \
+                for (i = 0; i < m; i++) {                               \
+                        __m256d x = _mm256_load_pd(&xs[i * 4]);         \
+                        _mm256_store_pd(&ys[i * 4], SIMD_FUNC(x));      \
+                }                                                       \
+                                                                        \
+                double leftover[4] DOUBLE_ALIGNED = { 0, 0, 0, 0 };     \
+                for (i = m8, j = 0; i < n; i++, j++) {                  \
+                        leftover[j] = xs[i];                            \
+                }                                                       \
+                                                                        \
+                __m256d x = SIMD_FUNC(_mm256_load_pd(leftover));        \
+                _mm256_store_pd(leftover, x);                           \
+                                                                        \
+                for (i = m8, j = 0; i < n; i++, j++) {                  \
+                        ys[i] = leftover[j];                            \
+                }                                                       \
         }
 
-        double leftover[4] DOUBLE_ALIGNED = { 0, 0, 0, 0 };
-        for (i = m8, j = 0; i < n; i++, j++) {
-                leftover[j] = xs[i];
-        }
-
-        __m256d x = simd_exp(_mm256_load_pd(leftover));
-        _mm256_store_pd(leftover, x);
-
-        for (i = m8, j = 0; i < n; i++, j++) {
-                ys[i] = leftover[j];
-        }
-}
-
+MAP_FUNC_DOUBLE(map_exp, simd_exp)

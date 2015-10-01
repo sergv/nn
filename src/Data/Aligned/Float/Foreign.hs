@@ -90,8 +90,33 @@ foreign import ccall unsafe "dotf" dotProductf
   -> Ptr AlignedFloat
   -> IO Float
 
-foreign import ccall unsafe "map_exp" mapExp
+foreign import ccall unsafe "map_expf" mapExp
   :: CUInt
   -> Ptr AlignedFloat
   -> Ptr AlignedFloat
   -> IO ()
+
+foreign import ccall unsafe "map_sigmoidf" mapSigmoid
+  :: CUInt
+  -> Ptr AlignedFloat
+  -> Ptr AlignedFloat
+  -> IO ()
+
+foreign import ccall unsafe "map_sigmoid_derivf" mapSigmoidDeriv
+  :: CUInt
+  -> Ptr AlignedFloat
+  -> Ptr AlignedFloat
+  -> IO ()
+
+foreign import ccall unsafe "map_tanhf" mapTanh
+  :: CUInt
+  -> Ptr AlignedFloat
+  -> Ptr AlignedFloat
+  -> IO ()
+
+foreign import ccall unsafe "map_tanh_derivf" mapTanhDeriv
+  :: CUInt
+  -> Ptr AlignedFloat
+  -> Ptr AlignedFloat
+  -> IO ()
+

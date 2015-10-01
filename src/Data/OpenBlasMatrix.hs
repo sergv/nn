@@ -325,6 +325,22 @@ instance Matrix OpenBlasMatrix AlignedStorableVector where
     where
       xs' = AlignedStorableVector xs
 
+instance
+  (ElemConstraints OpenBlasMatrix a)
+  =>
+  SpecialisedFunction Exp (OpenBlasMatrix a) (OpenBlasMatrix a)
+  where
+  {-# INLINABLE sfmap #-}
+  sfmap _ (OpenBlasMatrix rows cols xs) =
+    unsafePerformIO $ do
+      result <- SM.unsafeNew n
+      S.unsafeWith xs $ \xsPtr ->
+        SM.unsafeWith result $ \resultPtr ->
+          Aligned.mapExp n xsPtr resultPtr
+      OpenBlasMatrix rows cols <$> S.freeze result
+    where
+      n = rows *! cols
+
 {-# INLINABLE transposeMatrixData #-}
 transposeMatrixData
   :: (ElemConstraints OpenBlasMatrix a)

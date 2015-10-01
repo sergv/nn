@@ -19,6 +19,7 @@ library
                        Data.AlignedStorableVector
                        Data.ConstrainedConvert
                        Data.ConstrainedFunctor
+                       Data.Eps
                        Data.MatrixDouble
                        Data.Nonlinearity
                        Data.Nonlinearity.Exp
@@ -98,6 +99,7 @@ test-suite test-nn
   main-is:             Main.hs
   other-modules:       MatrixTests
                        OtherTests
+                       TestUtils
                        VectorTests
   hs-source-dirs:      tests
   default-language:    Haskell2010
@@ -111,6 +113,7 @@ test-suite test-nn
                        -fno-warn-type-defaults
                        -ferror-spans
                        -rtsopts
+                       -O0
   ghc-prof-options:    -fprof-auto
 
 benchmark benchmark-nn

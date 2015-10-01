@@ -23,10 +23,11 @@ module Data.Aligned.Float
 where
 
 import Control.DeepSeq
+import Data.Proxy
 import Foreign
 import Text.PrettyPrint.Leijen.Text (Pretty(..))
 
-import Data.ConstrainedFunctor
+import Data.Eps
 
 import Graphics.Rendering.Chart (PlotValue)
 
@@ -34,7 +35,11 @@ import Graphics.Rendering.Chart (PlotValue)
 
 newtype AlignedFloat = AlignedFloat
   { getAlignedFloat :: Float }
-  deriving (Eq, Ord, Num, Fractional, Floating, NFData, PlotValue)
+  deriving (Eq, Ord, Num, Fractional, Floating, Real, RealFrac, RealFloat, NFData, PlotValue)
+
+instance Eps AlignedFloat where
+  {-# INLINE getEps #-}
+  getEps _ = AlignedFloat $ getEps (Proxy :: Proxy Float)
 
 instance Show AlignedFloat where
   show = show . getAlignedFloat

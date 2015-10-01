@@ -11,6 +11,7 @@
 --
 ----------------------------------------------------------------------------
 
+{-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies        #-}
 
@@ -22,21 +23,25 @@ import Test.Tasty.HUnit
 
 import Data.Aligned.Double
 import Data.Aligned.Float
-import Data.MatrixDouble (MatrixDouble)
-import Data.OpenBlasMatrix (OpenBlasMatrix)
-import Data.PureMatrix (PureMatrix)
-import Data.UnboxMatrix (UnboxMatrix)
-import Data.UnboxMatrixWithTranspose (UnboxMatrixWithTranspose)
 import Data.ConstrainedFunctor
 import Data.MatrixClass (Matrix)
 import qualified Data.MatrixClass as MC
+import Data.MatrixDouble (MatrixDouble)
+import Data.Nonlinearity
+import Data.OpenBlasMatrix (OpenBlasMatrix)
+import Data.PureMatrix (PureMatrix)
+import Data.SpecialisedFunction
+import Data.UnboxMatrix (UnboxMatrix)
+import Data.UnboxMatrixWithTranspose (UnboxMatrixWithTranspose)
 import Data.VectClass (Vect)
 import qualified Data.VectClass as VC
+
+import TestUtils
 
 tests :: TestTree
 tests = testGroup "Matrix tests"
   [ matrixTests "PureMatrix" pureMatrixProxy doubleProxy
-  , matrixTests "MatrixDouble" matrixDoubleProxy doubleProxy
+  -- , matrixTests "MatrixDouble" matrixDoubleProxy doubleProxy
   , matrixTests "UnboxMatrix" unboxMatrixProxy doubleProxy
   , matrixTests "UnboxMatrixWithTranspose" unboxMatrixWithTransposeProxy doubleProxy
   , matrixTests "OpenBlasMatrix, Double" openBlasMatrixProxy alignedDoubleProxy
@@ -45,7 +50,11 @@ tests = testGroup "Matrix tests"
 
 matrixTests
   :: forall w v a. (Vect v, Matrix w v)
-  => (ElemConstraints v a, Show (w a), Eq (w a), Show (v a), Eq (v a), Show a, Eq a, Num a)
+  => (ElemConstraints v a, Show (w a), Eq (w a), Show (v a), Eq (v a))
+  => (Show a, Eq a, Num a, Floating a)
+  => (ConstrainedFunctor w, ElemConstraints w (ApproxRelEqFloating a))
+  => (Eq (w (ApproxRelEqFloating a)), Show (w (ApproxRelEqFloating a)))
+  => (SpecialisedFunction Exp (w a) (w a))
   => String
   -> Proxy w
   -> Proxy a
@@ -113,6 +122,13 @@ matrixTests name _ _ = testGroup name
             ])
   , testCase "sum columns" $
     MC.sumColumns testMatrix @?= ivec [3, 7, 11]
+
+  , testCase "exp #1" $
+    sfmap expProxy testMatrix @?~ cfmap exp testMatrix
+  , testCase "exp #2" $
+    sfmap expProxy testMatrix2 @?~ cfmap exp testMatrix2
+  , testCase "exp #3" $
+    sfmap expProxy testMatrix3 @?~ cfmap exp testMatrix3
   ]
   where
     testMatrix :: w a
@@ -140,15 +156,6 @@ matrixMultiplicationTests name x y z = testGroup name
     MC.matrixMultByTransposedRight x (MC.transpose y) @?= z
   ]
 
-doubleProxy :: Proxy Double
-doubleProxy = Proxy
-
-alignedDoubleProxy :: Proxy AlignedDouble
-alignedDoubleProxy = Proxy
-
-alignedFloatProxy :: Proxy AlignedFloat
-alignedFloatProxy = Proxy
-
 pureMatrixProxy :: Proxy (PureMatrix [])
 pureMatrixProxy = Proxy
 
@@ -163,9 +170,3 @@ unboxMatrixWithTransposeProxy = Proxy
 
 openBlasMatrixProxy :: Proxy OpenBlasMatrix
 openBlasMatrixProxy = Proxy
-
-ivec :: (ElemConstraints v a, Vect v) => [a] -> v a
-ivec = VC.fromList
-
-imat :: (ElemConstraints w a, Matrix w v, Show a) => [[a]] -> w a
-imat = MC.fromList
