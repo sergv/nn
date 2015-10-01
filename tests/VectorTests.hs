@@ -20,7 +20,6 @@
 module VectorTests (tests) where
 
 import Data.Vector (Vector)
-import qualified Data.Vector.Storable as S
 import Data.Proxy
 import Test.Tasty
 import Test.Tasty.HUnit

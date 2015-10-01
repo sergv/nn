@@ -246,6 +246,65 @@ __m256 simd_expf(__m256 x)
 
 MAP_FUNC_FLOAT(map_expf, simd_expf)
 
+__attribute__((always_inline))
+inline void simd_sigmoid_with_derivf(__m256 x, __m256 * __restrict nonlin, __m256 * __restrict deriv)
+{
+        const __m256 y        = simd_expf(x);
+        const __m256 y_plus_1 = _mm256_add_ps(y, _mm256_set1_ps(1.0f));
+        *nonlin = _mm256_div_ps(y, y_plus_1);
+        *deriv  = _mm256_div_ps(*nonlin, y_plus_1);
+}
+
+__attribute__((always_inline))
+inline void simd_tanh_with_derivf(__m256 x, __m256 * __restrict nonlin, __m256 * __restrict deriv)
+{
+        const __m256 eX = simd_expf(x);
+        const __m256 eMinusX = simd_expf(_mm256_sub_ps(_mm256_set1_ps(0.0f), x));
+        *nonlin = _mm256_div_ps(_mm256_sub_ps(eX, eMinusX), _mm256_add_ps(eX, eMinusX));
+        *deriv  = _mm256_sub_ps(_mm256_set1_ps(1.0f), _mm256_mul_ps(*nonlin, *nonlin));;
+}
+
+#define MAP_FUNC_WITH_DERIV_FLOAT(NAME, FUNC)                           \
+        void NAME(unsigned int n,                                       \
+                  const float_aligned * __restrict xs,                  \
+                  float_aligned * __restrict values,                    \
+                  float_aligned * __restrict derivs)                    \
+        {                                                               \
+                unsigned int i = 0, j = 0;                              \
+                const unsigned int m  = n >> 3;                         \
+                const unsigned int m8 = m << 3;                         \
+                                                                        \
+                __m256 nonlin, deriv;                                   \
+                for (i = 0; i < m; i++) {                               \
+                        __m256 x = _mm256_load_ps(&xs[i * 8]);          \
+                                                                        \
+                        FUNC(x, &nonlin, &deriv);                       \
+                                                                        \
+                        _mm256_store_ps(&values[i * 8], nonlin);        \
+                        _mm256_store_ps(&derivs[i * 8], deriv);         \
+                }                                                       \
+                                                                        \
+                float leftover[8] FLOAT_ALIGNED = { 0, 0, 0, 0, 0, 0, 0, 0 }; \
+                for (i = m8, j = 0; i < n; i++, j++) {                  \
+                        leftover[j] = xs[i];                            \
+                }                                                       \
+                                                                        \
+                const __m256 x = _mm256_load_ps(leftover);              \
+                FUNC(x, &nonlin, &deriv);                               \
+                                                                        \
+                _mm256_store_ps(leftover, nonlin);                      \
+                for (i = m8, j = 0; i < n; i++, j++) {                  \
+                        values[i] = leftover[j];                        \
+                }                                                       \
+                                                                        \
+                _mm256_store_ps(leftover, deriv);                       \
+                for (i = m8, j = 0; i < n; i++, j++) {                  \
+                        derivs[i] = leftover[j];                        \
+                }                                                       \
+        }
+
+MAP_FUNC_WITH_DERIV_FLOAT(map_sigmoid_with_derivf, simd_sigmoid_with_derivf)
+MAP_FUNC_WITH_DERIV_FLOAT(map_tanh_with_derivf, simd_tanh_with_derivf)
 
 #define EXP_HI_D 7.08396418532264106224E2     /* log (2**1022) */
 #define EXP_LO_D -7.08396418532264106224E2    /* log (2**-1022) */
@@ -376,3 +435,63 @@ __m256d simd_exp(__m256d x)
         }
 
 MAP_FUNC_DOUBLE(map_exp, simd_exp)
+
+__attribute__((always_inline))
+inline void simd_sigmoid_with_deriv(__m256d x, __m256d * __restrict nonlin, __m256d * __restrict deriv)
+{
+        const __m256d y        = simd_exp(x);
+        const __m256d y_plus_1 = _mm256_add_pd(y, _mm256_set1_pd(1.0));
+        *nonlin = _mm256_div_pd(y, y_plus_1);
+        *deriv  = _mm256_div_pd(*nonlin, y_plus_1);
+}
+
+__attribute__((always_inline))
+inline void simd_tanh_with_deriv(__m256d x, __m256d * __restrict nonlin, __m256d * __restrict deriv)
+{
+        const __m256d eX = simd_exp(x);
+        const __m256d eMinusX = simd_exp(_mm256_sub_pd(_mm256_set1_pd(0.0), x));
+        *nonlin = _mm256_div_pd(_mm256_sub_pd(eX, eMinusX), _mm256_add_pd(eX, eMinusX));
+        *deriv  = _mm256_sub_pd(_mm256_set1_pd(1.0f), _mm256_mul_pd(*nonlin, *nonlin));;
+}
+
+#define MAP_FUNC_WITH_DERIV(NAME, FUNC)                                 \
+        void NAME(unsigned int n,                                       \
+                  const double_aligned * __restrict xs,                 \
+                  double_aligned * __restrict values,                   \
+                  double_aligned * __restrict derivs)                   \
+        {                                                               \
+                unsigned int i = 0, j = 0;                              \
+                const unsigned int m  = n >> 2;                         \
+                const unsigned int m4 = m << 2;                         \
+                                                                        \
+                __m256d nonlin, deriv;                                  \
+                for (i = 0; i < m; i++) {                               \
+                        __m256d x = _mm256_load_pd(&xs[i * 4]);         \
+                                                                        \
+                        FUNC(x, &nonlin, &deriv);                       \
+                                                                        \
+                        _mm256_store_pd(&values[i * 4], nonlin);        \
+                        _mm256_store_pd(&derivs[i * 4], deriv);         \
+                }                                                       \
+                                                                        \
+                double leftover[4] DOUBLE_ALIGNED = { 0, 0, 0, 0 };     \
+                for (i = m4, j = 0; i < n; i++, j++) {                  \
+                        leftover[j] = xs[i];                            \
+                }                                                       \
+                                                                        \
+                const __m256d x = _mm256_load_pd(leftover);             \
+                FUNC(x, &nonlin, &deriv);                               \
+                                                                        \
+                _mm256_store_pd(leftover, nonlin);                      \
+                for (i = m4, j = 0; i < n; i++, j++) {                  \
+                        values[i] = leftover[j];                        \
+                }                                                       \
+                                                                        \
+                _mm256_store_pd(leftover, deriv);                       \
+                for (i = m4, j = 0; i < n; i++, j++) {                  \
+                        derivs[i] = leftover[j];                        \
+                }                                                       \
+        }
+
+MAP_FUNC_WITH_DERIV(map_sigmoid_with_deriv, simd_sigmoid_with_deriv)
+MAP_FUNC_WITH_DERIV(map_tanh_with_deriv, simd_tanh_with_deriv)

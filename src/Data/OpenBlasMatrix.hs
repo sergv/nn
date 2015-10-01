@@ -28,6 +28,7 @@ module Data.OpenBlasMatrix (OpenBlasMatrix) where
 
 import Prelude hiding (zipWith, zipWith3)
 import Control.DeepSeq
+import Foreign.Ptr
 import Data.Monoid
 import qualified Data.List as L
 import qualified Data.Vector.Storable as S
@@ -331,15 +332,57 @@ instance
   SpecialisedFunction Exp (OpenBlasMatrix a) (OpenBlasMatrix a)
   where
   {-# INLINABLE sfmap #-}
-  sfmap _ (OpenBlasMatrix rows cols xs) =
-    unsafePerformIO $ do
-      result <- SM.unsafeNew n
-      S.unsafeWith xs $ \xsPtr ->
-        SM.unsafeWith result $ \resultPtr ->
-          Aligned.mapExp n xsPtr resultPtr
-      OpenBlasMatrix rows cols <$> S.freeze result
-    where
-      n = rows *! cols
+  sfmap _ = mapForeignFunc Aligned.mapExp
+
+mapForeignFunc
+  :: (ElemConstraints OpenBlasMatrix a)
+  => (Int -> Ptr a -> Ptr a -> IO ())
+  -> OpenBlasMatrix a
+  -> OpenBlasMatrix a
+mapForeignFunc f (OpenBlasMatrix rows cols xs) =
+  unsafePerformIO $ do
+    result <- SM.unsafeNew n
+    S.unsafeWith xs $ \xsPtr ->
+      SM.unsafeWith result $ \resultPtr ->
+        f n xsPtr resultPtr
+    OpenBlasMatrix rows cols <$> S.freeze result
+  where
+    n = rows *! cols
+
+instance
+  (ElemConstraints OpenBlasMatrix a)
+  =>
+  SpecialisedFunction (FuncWithDeriv Sigmoid) (OpenBlasMatrix a) (OpenBlasMatrix a, OpenBlasMatrix a)
+  where
+  {-# INLINABLE sfmap #-}
+  sfmap _ m = mapForeignFunc' Aligned.mapSigmoidWithDeriv m
+
+instance
+  (ElemConstraints OpenBlasMatrix a)
+  =>
+  SpecialisedFunction (FuncWithDeriv HyperbolicTangent) (OpenBlasMatrix a) (OpenBlasMatrix a, OpenBlasMatrix a)
+  where
+  {-# INLINABLE sfmap #-}
+  sfmap _ m = mapForeignFunc' Aligned.mapTanhWithDeriv m
+
+mapForeignFunc'
+  :: (ElemConstraints OpenBlasMatrix a)
+  => (Int -> Ptr a -> Ptr a -> Ptr a -> IO ())
+  -> OpenBlasMatrix a
+  -> (OpenBlasMatrix a, OpenBlasMatrix a)
+mapForeignFunc' f (OpenBlasMatrix rows cols xs) =
+  unsafePerformIO $ do
+    resultX <- SM.unsafeNew n
+    resultY <- SM.unsafeNew n
+    S.unsafeWith xs $ \xsPtr ->
+      SM.unsafeWith resultX $ \resultXPtr ->
+        SM.unsafeWith resultY $ \resultYPtr ->
+          f n xsPtr resultXPtr resultYPtr
+    resX <- OpenBlasMatrix rows cols <$> S.freeze resultX
+    resY <- OpenBlasMatrix rows cols <$> S.freeze resultY
+    return (resX, resY)
+  where
+    n = rows *! cols
 
 {-# INLINABLE transposeMatrixData #-}
 transposeMatrixData

@@ -158,3 +158,18 @@ foreign import ccall unsafe "map_tanh_deriv" mapTanhDeriv
   -> Ptr AlignedDouble
   -> Ptr AlignedDouble
   -> IO ()
+
+foreign import ccall unsafe "map_sigmoid_with_deriv" mapSigmoidWithDeriv
+  :: CUInt
+  -> Ptr AlignedDouble
+  -> Ptr AlignedDouble
+  -> Ptr AlignedDouble
+  -> IO ()
+
+foreign import ccall unsafe "map_tanh_with_deriv" mapTanhWithDeriv
+  :: CUInt
+  -> Ptr AlignedDouble
+  -> Ptr AlignedDouble
+  -> Ptr AlignedDouble
+  -> IO ()
+

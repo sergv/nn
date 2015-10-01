@@ -100,6 +100,20 @@ class (Storable a) => Aligned a where
     -> Ptr a -- ^ input
     -> Ptr a -- ^ output
     -> IO ()
+  -- | Input and outputs must be aligned to 32 bit and must not overlap.
+  mapSigmoidWithDeriv
+    :: Int
+    -> Ptr a -- ^ input
+    -> Ptr a -- ^ nonlinearity output
+    -> Ptr a -- ^ derivative output
+    -> IO ()
+  -- | Input and outputs must be aligned to 32 bit and must not overlap.
+  mapTanhWithDeriv
+    :: Int
+    -> Ptr a -- ^ input
+    -> Ptr a -- ^ nonlinearity output
+    -> Ptr a -- ^ derivative output
+    -> IO ()
 
 instance Aligned AlignedFloat where
   {-# INLINABLE gemv             #-}
@@ -117,7 +131,9 @@ instance Aligned AlignedFloat where
   addVectors n = FF.addVectorsf (cuint n)
   addVectorsScaled n x (AlignedFloat c) y z = FF.addVectorsScaledf (cuint n) x c y z
   dotProduct n x y = AlignedFloat <$> FF.dotProductf (cuint n) x y
-  mapExp n x y = FF.mapExp (cuint n) x y
+  mapExp n x y                = FF.mapExp              (cuint n) x y
+  mapSigmoidWithDeriv n x y z = FF.mapSigmoidWithDeriv (cuint n) x y z
+  mapTanhWithDeriv n x y z    = FF.mapTanhWithDeriv    (cuint n) x y z
 
 instance Aligned AlignedDouble where
   gemv ord trans m n (AlignedDouble alpha) a lda x incx (AlignedDouble beta) y incy =
@@ -129,7 +145,9 @@ instance Aligned AlignedDouble where
   addVectors n = DF.addVectors (cuint n)
   addVectorsScaled n x (AlignedDouble c) y z = DF.addVectorsScaled (cuint n) x c y z
   dotProduct n x y = AlignedDouble <$> DF.dotProduct (cuint n) x y
-  mapExp n x y = DF.mapExp (cuint n) x y
+  mapExp n x y                = DF.mapExp              (cuint n) x y
+  mapSigmoidWithDeriv n x y z = DF.mapSigmoidWithDeriv (cuint n) x y z
+  mapTanhWithDeriv n x y z    = DF.mapTanhWithDeriv    (cuint n) x y z
 
 {-# INLINE cuint #-}
 cuint :: Int -> CUInt

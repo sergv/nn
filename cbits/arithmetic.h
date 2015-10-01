@@ -42,8 +42,25 @@ double dot(unsigned int n,
 void map_expf(unsigned int n,
               const float_aligned * __restrict xs,
               float_aligned * __restrict ys);
+void map_sigmoid_with_derivf(unsigned int n,
+                             const float_aligned * __restrict xs,
+                             float_aligned * __restrict ys,
+                             float_aligned * __restrict zs);
+void map_tanh_with_derivf(unsigned int n,
+                          const float_aligned * __restrict xs,
+                          float_aligned * __restrict ys,
+                          float_aligned * __restrict zs);
+
 void map_exp(unsigned int n,
              const double_aligned * __restrict xs,
              double_aligned * __restrict ys);
+void map_sigmoid_with_deriv(unsigned int n,
+                            const double_aligned * __restrict xs,
+                            double_aligned * __restrict ys,
+                            double_aligned * __restrict zs);
+void map_tanh_with_deriv(unsigned int n,
+                         const double_aligned * __restrict xs,
+                         double_aligned * __restrict ys,
+                         double_aligned * __restrict zs);
 
 #endif /* #ifndef ARITHMETIC_H_ */
