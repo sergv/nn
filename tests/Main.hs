@@ -32,14 +32,11 @@ import Data.Aligned.Double
 import Data.AlignedStorableVector (AlignedStorableVector)
 import qualified Data.AlignedStorableVector as ASV
 import Data.ConstrainedFunctor
-import Data.MatrixDouble (MatrixDouble)
 import Data.Nonlinearity
 import Data.OpenBlasMatrix (OpenBlasMatrix)
 import Data.PureMatrix (PureMatrix)
-import Data.VectorDouble (VectorDouble)
 import Data.UnboxMatrix (UnboxMatrix)
 import Data.UnboxMatrixWithTranspose (UnboxMatrixWithTranspose)
-import qualified Data.VectorDouble as VD
 import NN (NNVectorLike)
 import qualified NN
 import qualified NN.Specific as S
@@ -256,14 +253,6 @@ compareGradientsFromDifferentSources name mkInput inputLayerSize hiddenLayers fi
           (makeGenericVectorNN inputLayerSize hiddenLayers finalLayerSize)
           (G.backprop chunkSize)
       , compareNNGradients
-          "Specific vs Generic MatrixDouble"
-          (mkVectorInput mkInput)
-          (makeSpecificNN inputLayerSize hiddenLayers finalLayerSize)
-          S.backprop
-          (mkVectorDoubleInput mkInput)
-          (makeUnboxedDoubleNN inputLayerSize hiddenLayers finalLayerSize)
-          (G.backprop chunkSize)
-      , compareNNGradients
           "Specific vs Generic UnboxMatrix"
           (mkVectorInput mkInput)
           (makeSpecificNN inputLayerSize hiddenLayers finalLayerSize)
@@ -287,14 +276,6 @@ compareGradientsFromDifferentSources name mkInput inputLayerSize hiddenLayers fi
           (mkAlignedStorableVectorInput mkInput)
           (makeOpenBlasMatrixNN inputLayerSize hiddenLayers finalLayerSize)
           (G.backprop chunkSize)
-      -- , compareNNGradients
-      --     "Specific vs Generic MatrixDouble, specialized backprop"
-      --     (mkVectorInput mkInput)
-      --     (makeSpecificNN inputLayerSize hiddenLayers finalLayerSize)
-      --     S.backprop
-      --     (mkVectorDoubleInput mkInput)
-      --     (makeUnboxedDoubleNN inputLayerSize hiddenLayers finalLayerSize)
-      --     G.backprop'
       ]
   ]
 
@@ -310,9 +291,6 @@ makeGenericVectorNN inputLayerSize hiddenLayerSizes finalLayerSize =
 makeGenericListNN :: Int -> [Int] -> Int -> State PureMT (G.NN (PureMatrix []) [] HyperbolicTangent HyperbolicTangent Double)
 makeGenericListNN inputLayerSize hiddenLayerSizes finalLayerSize =
   G.makeNN inputLayerSize hiddenLayerSizes finalLayerSize (sample stdNormal)
-makeUnboxedDoubleNN :: Int -> [Int] -> Int -> State PureMT (G.NN MatrixDouble VectorDouble HyperbolicTangent HyperbolicTangent Double)
-makeUnboxedDoubleNN inputLayerSize hiddenLayerSizes finalLayerSize =
-  G.makeNN inputLayerSize hiddenLayerSizes finalLayerSize (sample stdNormal)
 makeUnboxMatrixNN :: Int -> [Int] -> Int -> State PureMT (G.NN UnboxMatrix U.Vector HyperbolicTangent HyperbolicTangent Double)
 makeUnboxMatrixNN inputLayerSize hiddenLayerSizes finalLayerSize =
   G.makeNN inputLayerSize hiddenLayerSizes finalLayerSize (sample stdNormal)
@@ -327,11 +305,6 @@ mkVectorInput
   :: (Double -> ([Double], [Double]))
   -> Double -> (Vector Double, Vector Double)
 mkVectorInput mkInput = (V.fromList *** V.fromList) . mkInput
-
-mkVectorDoubleInput
-  :: (Double -> ([Double], [Double]))
-  -> Double -> (VectorDouble Double, VectorDouble Double)
-mkVectorDoubleInput mkInput = (VD.fromList *** VD.fromList) . mkInput
 
 mkUnboxedVectorInput
   :: (Double -> ([Double], [Double]))

@@ -20,7 +20,6 @@ library
                        Data.ConstrainedConvert
                        Data.ConstrainedFunctor
                        Data.Eps
-                       Data.MatrixDouble
                        Data.Nonlinearity
                        Data.Nonlinearity.Exp
                        Data.Nonlinearity.HyperbolicTangent
@@ -34,7 +33,6 @@ library
                        Data.StorableMatrixWithTranspose
                        Data.V3
                        Data.VectClass
-                       Data.VectorDouble
                        Data.UnboxMatrix
                        Data.UnboxMatrixWithTranspose
                        Data.Zippable

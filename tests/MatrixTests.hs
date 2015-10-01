@@ -26,7 +26,6 @@ import Data.Aligned.Float
 import Data.ConstrainedFunctor
 import Data.MatrixClass (Matrix)
 import qualified Data.MatrixClass as MC
-import Data.MatrixDouble (MatrixDouble)
 import Data.Nonlinearity
 import Data.OpenBlasMatrix (OpenBlasMatrix)
 import Data.PureMatrix (PureMatrix)
@@ -41,7 +40,6 @@ import TestUtils
 tests :: TestTree
 tests = testGroup "Matrix tests"
   [ matrixTests "PureMatrix" pureMatrixProxy doubleProxy
-  -- , matrixTests "MatrixDouble" matrixDoubleProxy doubleProxy
   , matrixTests "UnboxMatrix" unboxMatrixProxy doubleProxy
   , matrixTests "UnboxMatrixWithTranspose" unboxMatrixWithTransposeProxy doubleProxy
   , matrixTests "OpenBlasMatrix, Double" openBlasMatrixProxy alignedDoubleProxy
@@ -158,9 +156,6 @@ matrixMultiplicationTests name x y z = testGroup name
 
 pureMatrixProxy :: Proxy (PureMatrix [])
 pureMatrixProxy = Proxy
-
-matrixDoubleProxy :: Proxy MatrixDouble
-matrixDoubleProxy = Proxy
 
 unboxMatrixProxy :: Proxy UnboxMatrix
 unboxMatrixProxy = Proxy

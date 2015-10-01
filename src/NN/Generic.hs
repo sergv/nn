@@ -302,13 +302,6 @@ targetFunctionGrad dataset =
     targetFunction' dataset =
       targetFunction (V.map (fmap auto *** fmap auto) dataset)
 
--- backprop'
---   :: (Nonlinearity n, OutputType o n)
---   => Vector (VectorDouble Double, VectorDouble Double)
---   -> NN MatrixDouble VectorDouble n o Double
---   -> (Double, Grad (NN MatrixDouble VectorDouble n o) Double)
--- backprop' = backprop
-
 splitDataset
   :: forall v w a. (Vect v, Matrix w v, Show a)
   => (ElemConstraints v ~ ElemConstraints w, ElemConstraints w a)
