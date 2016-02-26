@@ -4,6 +4,8 @@
 
 #include <stdio.h>
 
+/* Functions on floats */
+
 #define PREFETCH_RO_ONESHOT(x) __builtin_prefetch(x, 0, 0)
 #define PREFETCH_RW_ONESHOT(x) __builtin_prefetch(x, 1, 0)
 
@@ -218,6 +220,32 @@ __m256 simd_expf(__m256 x)
         return _mm256_mul_ps(y, pow2n);
 }
 
+__m256 simd_sigmoidf(__m256 x)
+{
+        const __m256 y = simd_expf(x);
+        return _mm256_div_ps(y, _mm256_add_ps(y, _mm256_set1_ps(1.0f)));
+}
+
+__m256 simd_sigmoid_derivf(__m256 x)
+{
+        const __m256 y = simd_expf(x);
+        const __m256 y_plus_1 = _mm256_add_ps(y, _mm256_set1_ps(1.0f));
+        return _mm256_div_ps(y, _mm256_mul_ps(y_plus_1, y_plus_1));
+}
+
+__m256 simd_tanhf(__m256 x)
+{
+        const __m256 y = simd_expf(x);
+        const __m256 z = simd_expf(_mm256_sub_ps(_mm256_set1_ps(0.0f), x));
+        return _mm256_div_ps(_mm256_sub_ps(y, z), _mm256_add_ps(y, z));
+}
+
+__m256 simd_tanh_derivf(__m256 x)
+{
+        const __m256 y = simd_tanhf(x);
+        return _mm256_sub_ps(_mm256_set1_ps(1.0f), _mm256_mul_ps(y, y));
+}
+
 #define MAP_FUNC_FLOAT(NAME, SIMD_FUNC)                                 \
         void NAME(unsigned int n,                                       \
                   const float_aligned * __restrict xs,                  \
@@ -245,6 +273,12 @@ __m256 simd_expf(__m256 x)
         }
 
 MAP_FUNC_FLOAT(map_expf, simd_expf)
+MAP_FUNC_FLOAT(map_sigmoidf, simd_sigmoidf)
+MAP_FUNC_FLOAT(map_sigmoid_derivf, simd_sigmoid_derivf)
+MAP_FUNC_FLOAT(map_tanhf, simd_tanhf)
+MAP_FUNC_FLOAT(map_tanh_derivf, simd_tanh_derivf)
+
+/* Nonlinearity with deriv, float */
 
 __attribute__((always_inline))
 inline void simd_sigmoid_with_derivf(__m256 x, __m256 * __restrict nonlin, __m256 * __restrict deriv)
@@ -305,6 +339,9 @@ inline void simd_tanh_with_derivf(__m256 x, __m256 * __restrict nonlin, __m256 *
 
 MAP_FUNC_WITH_DERIV_FLOAT(map_sigmoid_with_derivf, simd_sigmoid_with_derivf)
 MAP_FUNC_WITH_DERIV_FLOAT(map_tanh_with_derivf, simd_tanh_with_derivf)
+
+
+/* Functions on doubles */
 
 #define EXP_HI_D 7.08396418532264106224E2     /* log (2**1022) */
 #define EXP_LO_D -7.08396418532264106224E2    /* log (2**-1022) */
@@ -408,6 +445,32 @@ __m256d simd_exp(__m256d x)
         return _mm256_mul_pd(y, pow2n);
 }
 
+__m256d simd_sigmoid(__m256d x)
+{
+        const __m256d y = simd_exp(x);
+        return _mm256_div_pd(y, _mm256_add_pd(y, _mm256_set1_pd(1.0)));
+}
+
+__m256d simd_sigmoid_deriv(__m256d x)
+{
+        const __m256d y = simd_exp(x);
+        const __m256d y_plus_1 = _mm256_add_pd(y, _mm256_set1_pd(1.0));
+        return _mm256_div_pd(y, _mm256_mul_pd(y_plus_1, y_plus_1));
+}
+
+__m256d simd_tanh(__m256d x)
+{
+        const __m256d y = simd_exp(x);
+        const __m256d z = simd_exp(_mm256_sub_pd(_mm256_set1_pd(0.0), x));
+        return _mm256_div_pd(_mm256_sub_pd(y, z), _mm256_add_pd(y, z));
+}
+
+__m256d simd_tanh_deriv(__m256d x)
+{
+        const __m256d y = simd_tanh(x);
+        return _mm256_sub_pd(_mm256_set1_pd(1.0), _mm256_mul_pd(y, y));
+}
+
 #define MAP_FUNC_DOUBLE(NAME, SIMD_FUNC)                                \
         void NAME(unsigned int n,                                       \
                   const double_aligned * __restrict xs,                 \
@@ -435,6 +498,12 @@ __m256d simd_exp(__m256d x)
         }
 
 MAP_FUNC_DOUBLE(map_exp, simd_exp)
+MAP_FUNC_DOUBLE(map_sigmoid, simd_sigmoid)
+MAP_FUNC_DOUBLE(map_sigmoid_deriv, simd_sigmoid_deriv)
+MAP_FUNC_DOUBLE(map_tanh, simd_tanh)
+MAP_FUNC_DOUBLE(map_tanh_deriv, simd_tanh_deriv)
+
+/* Nonlinearity with deriv, double */
 
 __attribute__((always_inline))
 inline void simd_sigmoid_with_deriv(__m256d x, __m256d * __restrict nonlin, __m256d * __restrict deriv)

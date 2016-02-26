@@ -24,8 +24,6 @@ import Data.Proxy
 import Test.Tasty
 import Test.Tasty.HUnit
 
-import Data.Aligned.Double (AlignedDouble)
-import Data.Aligned.Float (AlignedFloat)
 import Data.AlignedStorableVector (AlignedStorableVector)
 import Data.ConstrainedFunctor
 import Data.Nonlinearity

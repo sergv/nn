@@ -42,6 +42,19 @@ double dot(unsigned int n,
 void map_expf(unsigned int n,
               const float_aligned * __restrict xs,
               float_aligned * __restrict ys);
+void map_sigmoidf(unsigned int n,
+                  const float_aligned * __restrict xs,
+                  float_aligned * __restrict ys);
+void map_sigmoid_derivf(unsigned int n,
+                  const float_aligned * __restrict xs,
+                  float_aligned * __restrict ys);
+void map_tanhf(unsigned int n,
+               const float_aligned * __restrict xs,
+               float_aligned * __restrict ys);
+void map_tanh_derivf(unsigned int n,
+                     const float_aligned * __restrict xs,
+                     float_aligned * __restrict ys);
+
 void map_sigmoid_with_derivf(unsigned int n,
                              const float_aligned * __restrict xs,
                              float_aligned * __restrict ys,
@@ -54,6 +67,19 @@ void map_tanh_with_derivf(unsigned int n,
 void map_exp(unsigned int n,
              const double_aligned * __restrict xs,
              double_aligned * __restrict ys);
+void map_sigmoid(unsigned int n,
+                 const double_aligned * __restrict xs,
+                 double_aligned * __restrict ys);
+void map_sigmoid_deriv(unsigned int n,
+                       const double_aligned * __restrict xs,
+                       double_aligned * __restrict ys);
+void map_tanh(unsigned int n,
+              const double_aligned * __restrict xs,
+              double_aligned * __restrict ys);
+void map_tanh_deriv(unsigned int n,
+                    const double_aligned * __restrict xs,
+                    double_aligned * __restrict ys);
+
 void map_sigmoid_with_deriv(unsigned int n,
                             const double_aligned * __restrict xs,
                             double_aligned * __restrict ys,

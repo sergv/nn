@@ -13,8 +13,8 @@
 
 {-# LANGUAGE BangPatterns          #-}
 {-# LANGUAGE ConstraintKinds       #-}
-{-# LANGUAGE DeriveFunctor         #-}
 {-# LANGUAGE DeriveFoldable        #-}
+{-# LANGUAGE DeriveFunctor         #-}
 {-# LANGUAGE DeriveTraversable     #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
