@@ -66,7 +66,12 @@ library
   extra-libraries:     openblas
   include-dirs:        cbits
   install-includes:    arithmetic.h
+                       arithmetic_types.h
+                       simd_expf.h
+                       simd_exp.h
   c-sources:           cbits/arithmetic.c
+                       cbits/simd_expf.c
+                       cbits/simd_exp.c
   cc-options:          -march=native -O3 -g0
 
 executable nn

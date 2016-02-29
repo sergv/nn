@@ -3,12 +3,7 @@
 
 /* Created: Tuesday, 11 August 2015 */
 
-#define FLOAT_ALIGNMENT 32
-#define DOUBLE_ALIGNMENT 32
-// (sizeof(double) * 4)
-
-typedef float float_aligned __attribute__((aligned(FLOAT_ALIGNMENT)));
-typedef double double_aligned __attribute__((aligned(DOUBLE_ALIGNMENT)));
+#include <arithmetic_types.h>
 
 void addf(unsigned int n,
           const float_aligned * __restrict xs,
