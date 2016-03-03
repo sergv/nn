@@ -50,6 +50,7 @@ import Numeric.AD hiding (grad, Grad)
 import Data.ConstrainedConvert (Convert)
 import qualified Data.ConstrainedConvert as Conv
 import Data.ConstrainedFunctor
+import Data.Grad
 import Data.MatrixClass (Matrix, (|+|))
 import qualified Data.MatrixClass as MC
 import Data.Nonlinearity

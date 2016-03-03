@@ -46,6 +46,7 @@ import Data.Random.Source.PureMT ()
 import Data.ConstrainedConvert (Convert)
 import qualified Data.ConstrainedConvert as Conv
 import Data.ConstrainedFunctor
+import Data.Grad
 import Data.Nonlinearity
 import Data.SpecialisedFunction
 import Data.Zippable

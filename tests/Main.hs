@@ -32,15 +32,16 @@ import Data.Aligned.Double
 import Data.AlignedStorableVector (AlignedStorableVector)
 import qualified Data.AlignedStorableVector as ASV
 import Data.ConstrainedFunctor
+import Data.Grad
 import Data.Nonlinearity
 import Data.OpenBlasMatrix (OpenBlasMatrix)
 import Data.PureMatrix (PureMatrix)
 import Data.UnboxMatrix (UnboxMatrix)
 import Data.UnboxMatrixWithTranspose (UnboxMatrixWithTranspose)
-import NN (NNVectorLike)
 import qualified NN
-import qualified NN.Specific as S
+import NN (NNVectorLike)
 import qualified NN.Generic as G
+import qualified NN.Specific as S
 import Util
 
 import Test.Tasty

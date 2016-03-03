@@ -21,10 +21,11 @@ module LearningAlgorithms where
 
 import Data.Vector (Vector)
 
-import Data.V3
 import Data.ConstrainedConvert (Convert)
-import Data.ConstrainedFunctor
 import qualified Data.ConstrainedConvert as Conv
+import Data.ConstrainedFunctor
+import Data.Grad
+import Data.V3
 import Data.Zippable
 import NN (NeuralNetwork, NNVectorLike)
 import qualified NN as NN

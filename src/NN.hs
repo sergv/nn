@@ -24,6 +24,7 @@ import Control.Monad.Except
 import Data.Vector (Vector)
 
 import Data.ConstrainedFunctor
+import Data.Grad
 import qualified Data.MatrixClass as MC
 import Data.Nonlinearity
 import Data.SpecialisedFunction

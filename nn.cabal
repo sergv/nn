@@ -20,6 +20,7 @@ library
                        Data.ConstrainedConvert
                        Data.ConstrainedFunctor
                        Data.Eps
+                       Data.Grad
                        Data.Nonlinearity
                        Data.Nonlinearity.Exp
                        Data.Nonlinearity.HyperbolicTangent

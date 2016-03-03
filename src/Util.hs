@@ -11,14 +11,9 @@
 --
 ----------------------------------------------------------------------------
 
-{-# LANGUAGE DeriveFunctor              #-}
-{-# LANGUAGE DeriveFoldable             #-}
-{-# LANGUAGE DeriveTraversable          #-}
 {-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TupleSections              #-}
-{-# LANGUAGE TypeFamilies               #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -32,18 +27,7 @@ import qualified Data.Vector as V
 import Text.PrettyPrint.Leijen.Text (Doc, Pretty(..))
 import qualified Text.PrettyPrint.Leijen.Text as PP
 
-import Data.ConstrainedFunctor
-
 -- Other utils
-
--- | Documentation wrapper to distinguish gradients from vanilla vectors.
-newtype Grad f a = Grad { getGrad :: f a }
-  deriving (Show, Eq, Ord, Functor, Foldable, Traversable)
-
-instance (ConstrainedFunctor f) => ConstrainedFunctor (Grad f) where
-  type (ElemConstraints (Grad f)) = ElemConstraints f
-  {-# INLINABLE cfmap #-}
-  cfmap f (Grad x) = Grad $ cfmap f x
 
 linspace :: Int -> Double -> Double -> [Double]
 linspace n low hi = map (\k -> low + fromIntegral k * delta) [0..n]
