@@ -20,7 +20,10 @@
 
 module Data.Nonlinearity.Sigmoid (Sigmoid) where
 
+import Data.Functor.Identity
+
 import Data.ConstrainedFunctor
+import Data.Grad
 import Data.Nonlinearity.Proxies
 import Data.Proxy
 import Data.SpecialisedFunction
@@ -45,13 +48,15 @@ sigmoidDeriv x = x' /! (1 +! x')^2
     where
       x' = exp x
 
-instance {-# OVERLAPPABLE #-} (Floating a) => SpecialisedFunction Sigmoid a a where
+instance {-# OVERLAPPABLE #-} (Floating a) =>
+  SpecialisedFunction Sigmoid (Identity a) (Identity a) where
   {-# INLINABLE sfmap #-}
-  sfmap _ = sigmoid
+  sfmap _ = fmap sigmoid
 
-instance {-# OVERLAPPABLE #-} (Floating a) => SpecialisedFunction (Deriv Sigmoid) a a where
+instance {-# OVERLAPPABLE #-} (Floating a) =>
+  SpecialisedFunction (Deriv Sigmoid) (Identity a) (Grad Identity a) where
   {-# INLINABLE sfmap #-}
-  sfmap _ = sigmoidDeriv
+  sfmap _ = Grad . fmap sigmoidDeriv
 
 instance {-# OVERLAPPABLE #-}
   (ConstrainedFunctor f, ElemConstraints f a, Floating a)
@@ -62,14 +67,14 @@ instance {-# OVERLAPPABLE #-}
 
 instance {-# OVERLAPPABLE #-}
   (ConstrainedFunctor f, ElemConstraints f a, Floating a)
-  => SpecialisedFunction (Deriv Sigmoid) (f a) (f a)
+  => SpecialisedFunction (Deriv Sigmoid) (f a) (Grad f a)
   where
   {-# INLINABLE sfmap #-}
-  sfmap _ = cfmap sigmoidDeriv
+  sfmap _ = Grad . cfmap sigmoidDeriv
 
 instance {-# OVERLAPPABLE #-}
   (ConstrainedFunctor f, ElemConstraints f a, Floating a)
-  => SpecialisedFunction (FuncWithDeriv Sigmoid) (f a) (f a, f a)
+  => SpecialisedFunction (FuncWithDeriv Sigmoid) (f a) (f a, Grad f a)
   where
   {-# INLINABLE sfmap #-}
   sfmap _ w = (f w, g w)

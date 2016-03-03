@@ -27,6 +27,7 @@
 module Data.OpenBlasMatrix (OpenBlasMatrix) where
 
 import Control.DeepSeq
+import Data.Coerce
 import qualified Data.List as L
 import Data.Monoid
 import qualified Data.Vector.Storable as S
@@ -43,6 +44,7 @@ import qualified Data.AlignedStorableVector as ASV
 import Data.ConstrainedConvert (Convert)
 import qualified Data.ConstrainedConvert as Conv
 import Data.ConstrainedFunctor
+import Data.Grad
 import Data.MatrixClass
 import Data.Nonlinearity
 import Data.OpenBlasEnums
@@ -345,10 +347,10 @@ instance
 instance
   (ElemConstraints OpenBlasMatrix a)
   =>
-  SpecialisedFunction (Deriv Sigmoid) (OpenBlasMatrix a) (OpenBlasMatrix a)
+  SpecialisedFunction (Deriv Sigmoid) (OpenBlasMatrix a) (Grad OpenBlasMatrix a)
   where
   {-# INLINABLE sfmap #-}
-  sfmap _ = mapForeignFunc Aligned.mapSigmoidDeriv
+  sfmap _ = Grad . mapForeignFunc Aligned.mapSigmoidDeriv
 
 instance
   (ElemConstraints OpenBlasMatrix a)
@@ -361,10 +363,10 @@ instance
 instance
   (ElemConstraints OpenBlasMatrix a)
   =>
-  SpecialisedFunction (Deriv HyperbolicTangent) (OpenBlasMatrix a) (OpenBlasMatrix a)
+  SpecialisedFunction (Deriv HyperbolicTangent) (OpenBlasMatrix a) (Grad OpenBlasMatrix a)
   where
   {-# INLINABLE sfmap #-}
-  sfmap _ = mapForeignFunc Aligned.mapTanhDeriv
+  sfmap _ = Grad . mapForeignFunc Aligned.mapTanhDeriv
 
 mapForeignFunc
   :: (ElemConstraints OpenBlasMatrix a)
@@ -384,18 +386,18 @@ mapForeignFunc f (OpenBlasMatrix rows cols xs) =
 instance
   (ElemConstraints OpenBlasMatrix a)
   =>
-  SpecialisedFunction (FuncWithDeriv Sigmoid) (OpenBlasMatrix a) (OpenBlasMatrix a, OpenBlasMatrix a)
+  SpecialisedFunction (FuncWithDeriv Sigmoid) (OpenBlasMatrix a) (OpenBlasMatrix a, Grad OpenBlasMatrix a)
   where
   {-# INLINABLE sfmap #-}
-  sfmap _ m = mapForeignFunc' Aligned.mapSigmoidWithDeriv m
+  sfmap _ = coerce . mapForeignFunc' Aligned.mapSigmoidWithDeriv
 
 instance
   (ElemConstraints OpenBlasMatrix a)
   =>
-  SpecialisedFunction (FuncWithDeriv HyperbolicTangent) (OpenBlasMatrix a) (OpenBlasMatrix a, OpenBlasMatrix a)
+  SpecialisedFunction (FuncWithDeriv HyperbolicTangent) (OpenBlasMatrix a) (OpenBlasMatrix a, Grad OpenBlasMatrix a)
   where
   {-# INLINABLE sfmap #-}
-  sfmap _ m = mapForeignFunc' Aligned.mapTanhWithDeriv m
+  sfmap _ = coerce . mapForeignFunc' Aligned.mapTanhWithDeriv
 
 mapForeignFunc'
   :: (ElemConstraints OpenBlasMatrix a)

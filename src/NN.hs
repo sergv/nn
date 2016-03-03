@@ -32,7 +32,6 @@ import qualified Data.VectClass as VC
 import Data.Zippable
 import qualified NN.Generic as G
 import qualified NN.Specific as S
-import Util
 
 class (ConstrainedFunctor nn) => NNVectorLike (nn :: * -> *) a where
   -- z = x + b * y
@@ -67,14 +66,15 @@ instance
   targetFunctionGrad = S.targetFunctionGrad -- S.backprop -- S.targetFunctionGrad
 
 
-instance ( MC.Matrix w v
-         , VC.Vect v
-         , Zippable w
-         , ConstrainedFunctor w
-         , Floating a
-         , Show a
-         )
-         => NNVectorLike (G.NN w v n o) a where
+instance
+  ( MC.Matrix w v
+  , VC.Vect v
+  , Zippable w
+  , ConstrainedFunctor w
+  , Floating a
+  , Show a
+  )
+  => NNVectorLike (G.NN w v n o) a where
   fromWeightList = G.fromWeightList
   toWeightList   = G.toWeightList
   addScaled      = G.addScaled
@@ -82,18 +82,19 @@ instance ( MC.Matrix w v
   differenceSize = G.differenceSize
   make           = G.makeNN
 
-instance ( MC.Matrix w v
-         , VC.Vect v
-         , ConstrainedFunctor w
-         , ConstrainedFunctor v
-         , Zippable w
-         , Floating a
-         , Show a
-         , VectorisedNonlinearity n v
-         , VectorisedNonlinearity o v
-         , SpecialisedFunction (FuncWithDeriv n) (w a) (w a, w a)
-         , SpecialisedFunction (FuncWithDeriv o) (w a) (w a, w a)
-         )
-         => NeuralNetwork (G.NN w v n o) v a where
+instance
+  ( MC.Matrix w v
+  , VC.Vect v
+  , ConstrainedFunctor w
+  , ConstrainedFunctor v
+  , Zippable w
+  , Floating a
+  , Show a
+  , VectorisedNonlinearity n v
+  , VectorisedNonlinearity o v
+  , SpecialisedFunction (FuncWithDeriv n) (w a) (w a, Grad w a)
+  , SpecialisedFunction (FuncWithDeriv o) (w a) (w a, Grad w a)
+  )
+  => NeuralNetwork (G.NN w v n o) v a where
   forwardPropagate   = G.forwardPropagate
   targetFunctionGrad = G.backprop 500

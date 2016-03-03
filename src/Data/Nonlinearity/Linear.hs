@@ -20,7 +20,10 @@
 
 module Data.Nonlinearity.Linear (Linear) where
 
+import Data.Functor.Identity
+
 import Data.ConstrainedFunctor
+import Data.Grad
 import Data.Nonlinearity.Proxies
 import Data.Proxy
 import Data.SpecialisedFunction
@@ -32,13 +35,15 @@ data instance FuncWithDeriv Linear
 instance PrettyProxy Linear where
   prettyProxy _ = "Linear"
 
-instance {-# OVERLAPPABLE #-} (Floating a) => SpecialisedFunction Linear a a where
+instance {-# OVERLAPPABLE #-} (Floating a) =>
+  SpecialisedFunction Linear (Identity a) (Identity a) where
   {-# INLINABLE sfmap #-}
   sfmap _ = id
 
-instance {-# OVERLAPPABLE #-} (Floating a) => SpecialisedFunction (Deriv Linear) a a where
+instance {-# OVERLAPPABLE #-} (Floating a) =>
+  SpecialisedFunction (Deriv Linear) (Identity a) (Grad Identity a) where
   {-# INLINABLE sfmap #-}
-  sfmap _ = const 1
+  sfmap _ = const $ Grad $ Identity 1
 
 instance {-# OVERLAPPABLE #-}
   (ConstrainedFunctor f, ElemConstraints f a, Floating a)
@@ -49,14 +54,14 @@ instance {-# OVERLAPPABLE #-}
 
 instance {-# OVERLAPPABLE #-}
   (ConstrainedFunctor f, ElemConstraints f a, Floating a, Num a)
-  => SpecialisedFunction (Deriv Linear) (f a) (f a)
+  => SpecialisedFunction (Deriv Linear) (f a) (Grad f a)
   where
   {-# INLINABLE sfmap #-}
-  sfmap _ = cfmap (const 1)
+  sfmap _ = Grad . cfmap (const 1)
 
 instance {-# OVERLAPPABLE #-}
   (ConstrainedFunctor f, ElemConstraints f a, Floating a)
-  => SpecialisedFunction (FuncWithDeriv Linear) (f a) (f a, f a)
+  => SpecialisedFunction (FuncWithDeriv Linear) (f a) (f a, Grad f a)
   where
   {-# INLINABLE sfmap #-}
   sfmap _ w = (f w, g w)

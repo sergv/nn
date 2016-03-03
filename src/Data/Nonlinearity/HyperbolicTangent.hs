@@ -20,7 +20,10 @@
 
 module Data.Nonlinearity.HyperbolicTangent (HyperbolicTangent) where
 
+import Data.Functor.Identity
+
 import Data.ConstrainedFunctor
+import Data.Grad
 import Data.Nonlinearity.Proxies
 import Data.Proxy
 import Data.SpecialisedFunction
@@ -39,13 +42,15 @@ tanhDeriv x = 1 -! nonlin *! nonlin
   where
     nonlin = tanh x
 
-instance {-# OVERLAPPABLE #-} (Floating a) => SpecialisedFunction HyperbolicTangent a a where
+instance {-# OVERLAPPABLE #-} (Floating a) =>
+  SpecialisedFunction HyperbolicTangent (Identity a) (Identity a) where
   {-# INLINABLE sfmap #-}
-  sfmap _ = tanh
+  sfmap _ = fmap tanh
 
-instance {-# OVERLAPPABLE #-} (Floating a) => SpecialisedFunction (Deriv HyperbolicTangent) a a where
+instance {-# OVERLAPPABLE #-} (Floating a) =>
+  SpecialisedFunction (Deriv HyperbolicTangent) (Identity a) (Grad Identity a) where
   {-# INLINABLE sfmap #-}
-  sfmap _ = tanhDeriv
+  sfmap _ = Grad . fmap tanhDeriv
 
 instance {-# OVERLAPPABLE #-}
   (ConstrainedFunctor f, ElemConstraints f a, Floating a)
@@ -56,14 +61,14 @@ instance {-# OVERLAPPABLE #-}
 
 instance {-# OVERLAPPABLE #-}
   (ConstrainedFunctor f, ElemConstraints f a, Floating a)
-  => SpecialisedFunction (Deriv HyperbolicTangent) (f a) (f a)
+  => SpecialisedFunction (Deriv HyperbolicTangent) (f a) (Grad f a)
   where
   {-# INLINABLE sfmap #-}
-  sfmap _ = cfmap tanhDeriv
+  sfmap _ = Grad . cfmap tanhDeriv
 
 instance {-# OVERLAPPABLE #-}
   (ConstrainedFunctor f, ElemConstraints f a, Floating a)
-  => SpecialisedFunction (FuncWithDeriv HyperbolicTangent) (f a) (f a, f a)
+  => SpecialisedFunction (FuncWithDeriv HyperbolicTangent) (f a) (f a, Grad f a)
   where
   {-# INLINABLE sfmap #-}
   sfmap _ w = (f w, g w)

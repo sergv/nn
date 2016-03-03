@@ -35,6 +35,7 @@ import Control.Arrow
 import Control.DeepSeq
 import Control.Monad.Except
 import Control.Monad.State
+import Data.Coerce
 import qualified Data.List as L
 import Data.Monoid
 import Data.Proxy
@@ -331,8 +332,8 @@ backprop
   :: forall w v n o a. (Matrix w v, ConstrainedFunctor w, Zippable w)
   => (Vect v, ConstrainedFunctor v)
   => (Floating a, ElemConstraints (NN w v n o) a)
-  => (SpecialisedFunction (FuncWithDeriv n) (w a) (w a, w a))
-  => (SpecialisedFunction (FuncWithDeriv o) (w a) (w a, w a))
+  => (SpecialisedFunction (FuncWithDeriv n) (w a) (w a, Grad w a))
+  => (SpecialisedFunction (FuncWithDeriv o) (w a) (w a, Grad w a))
   => (Show a)
   => Int
   -> Vector (v a, v a)
@@ -372,6 +373,9 @@ backprop chunkSize dataset
             broadcastVector :: v a
             broadcastVector = VC.replicate size 1
 
+        mkNNGrad :: NN (Grad w) (Grad v) n o a -> Grad (NN w v n o) a
+        mkNNGrad = coerce
+
         computeBatch :: Vector (w a, w a)
                      -> (w a, w a)
                      -> w a
@@ -392,14 +396,14 @@ backprop chunkSize dataset
             --         , "finalLayerDeriv      = " <> pretty finalLayerDeriv
             --         , "finalLayerWeights    = " <> PP.align (pretty finalLayerWeights)
             --         ]) $
-            (err, Grad $ NN hiddenLayersDerivs (finBiasDerivs, finDerivs))
+            (err, mkNNGrad $ NN hiddenLayersDerivs (finBiasDerivs, finDerivs))
           where
             -- NB full neurons of hidden layers can be obtained by using
             -- V.snoc hiddenLayersNeurons prefinalNeuronLayer
-            hiddenLayersNeurons :: Vector (w a, w a, w a)
-            prefinalNeuronLayer :: (w a, w a, w a)
+            hiddenLayersNeurons :: Vector (w a, Grad w a, w a)
+            prefinalNeuronLayer :: (w a, Grad w a, w a)
             finalLayerVals      :: w a
-            finalLayerDeriv     :: w a
+            finalLayerDeriv     :: Grad w a
             (hiddenLayersNeurons, prefinalNeuronLayer, finalLayerVals, finalLayerDeriv) =
               forwardProp nn hiddenLayersBroadcasted finalLayerBroadcasted xs
             prediction :: w a
@@ -412,9 +416,9 @@ backprop chunkSize dataset
             finDeltas = zipWith
                           (\m d -> 2 *! m *! d)
                           mismatch
-                          finalLayerDeriv
-            finBiasDerivs :: v a
-            finDerivs     :: w a
+                          (getGrad finalLayerDeriv)
+            finBiasDerivs :: Grad v a
+            finDerivs     :: Grad w a
             (finBiasDerivs, finDerivs) = mkLayerDeriv finDeltas prefinalNeuronLayer
 
             _prefinalLayerDelta :: w a
@@ -433,12 +437,13 @@ backprop chunkSize dataset
 
             -- Zipping deltas for all but first layer and neuron values for
             -- all but prefinal layer.
-            hiddenLayersDerivs :: Vector (v a, w a)
+            hiddenLayersDerivs :: Vector (Grad v a, Grad w a)
             hiddenLayersDerivs =
               zipWith mkLayerDeriv hiddenLayerDeltas hiddenLayersNeurons
 
-            mkLayerDeriv :: w a -> (w a, b, c) -> (v a, w a)
-            mkLayerDeriv deltas (prevLayer, _prevLayerDeriv, _) = (biasDerivs, derivs)
+            mkLayerDeriv :: w a -> (w a, b, c) -> (Grad v a, Grad w a)
+            mkLayerDeriv deltas (prevLayer, _prevLayerDeriv, _) =
+              (Grad biasDerivs, Grad derivs)
               where
                 biasDerivs = MC.sumColumns deltas
                 -- prevLayer contains columns with layers for individual
@@ -448,10 +453,11 @@ backprop chunkSize dataset
                 derivs     = MC.matrixMultByTransposedRight deltas prevLayer
 
             mkDelta
-              :: (b, w a, w a)
+              :: (b, Grad w a, w a)
               -> (w a, w a)
               -> (w a, w a)
-            mkDelta (_layer, layerDeriv, weights) (deltas', weights') = (deltas, weights)
+            mkDelta (_layer, Grad layerDeriv, weights) (deltas', weights') =
+              (deltas, weights)
               where
                 deltas :: w a
                 deltas = zipWith mul layerDeriv
@@ -466,28 +472,30 @@ backprop chunkSize dataset
       -> Vector (w a, w a)
       -> (w a, w a)
       -> w a
-      -> (Vector (w a, w a, w a), (w a, w a, w a), w a, w a)
+      -> (Vector (w a, Grad w a, w a), (w a, Grad w a, w a), w a, Grad w a)
     forwardProp nn hiddenLayers finalLayer input =
       (neuronValues', prefinalNeuronLayer, finalLayerVals, finalLayerValsDeriv)
       where
-        neuronValues :: Vector (w a, w a, w a)
-        neuronValues =
-          V.scanl'
-            f
-            (input, cfmap (const 1) input, MC.outerProduct VC.empty VC.empty {-error "no weights before input layer"-})
-            hiddenLayers
+        neuronValues :: Vector (w a, Grad w a, w a)
+        neuronValues = V.scanl' f inputLayer hiddenLayers
 
-        neuronValues' :: Vector (w a, w a, w a)
+        inputLayer :: (w a, Grad w a, w a)
+        inputLayer = ( input
+                     , Grad $ cfmap (const 1) input
+                     , MC.outerProduct VC.empty VC.empty {-error "no weights before input layer"-}
+                     )
+
+        neuronValues' :: Vector (w a, Grad w a, w a)
         neuronValues' = V.unsafeInit neuronValues
-        prefinalNeuronLayer :: (w a, w a, w a)
+        prefinalNeuronLayer :: (w a, Grad w a, w a)
         prefinalNeuronLayer = V.unsafeLast neuronValues
         -- (neuronValues', prefinalNeuronLayer) = V.splitAt (V.length neuronValues - 1) neuronValues
 
         finalLayerVals      :: w a
-        finalLayerValsDeriv :: w a
+        finalLayerValsDeriv :: Grad w a
         (finalLayerVals, finalLayerValsDeriv) = g prefinalNeuronLayer finalLayer
 
-        f :: (w a, b, c) -> (w a, w a) -> (w a, w a, w a)
+        f :: (w a, b, c) -> (w a, w a) -> (w a, Grad w a, w a)
         f (prevLayer, _prevLayerDeriv, _prevWeights) (bias, weights) =
           (nonlin, nonlinDeriv, weights)
           where
@@ -495,7 +503,7 @@ backprop chunkSize dataset
             ss = bias |+| MC.matrixMult weights prevLayer
             (nonlin, nonlinDeriv) = sfmap nnNonlinDerivProxy ss
 
-        g :: (w a, b, c) -> (w a, w a) -> (w a, w a)
+        g :: (w a, b, c) -> (w a, w a) -> (w a, Grad w a)
         g (prevLayer, _prevLayerDeriv, _) (bias, layer) =
           sfmap nnOutputDerivProxy ss
           -- (cfmap (output nn) ss, cfmap (outputDeriv nn) ss)

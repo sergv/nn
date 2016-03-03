@@ -33,6 +33,7 @@ import Control.Arrow
 import Control.DeepSeq
 import Control.Monad.Except
 import Control.Monad.State
+import Data.Functor.Identity
 import Data.Monoid
 import Data.Vector (Vector)
 import qualified Data.Vector as V
@@ -223,8 +224,10 @@ targetFunctionGrad dataset =
 
 backprop
   :: forall n o a. (Floating a, Show a)
-  => (SpecialisedFunction n a a, SpecialisedFunction o a a)
-  => (SpecialisedFunction (Deriv n) a a, SpecialisedFunction (Deriv o) a a)
+  => (SpecialisedFunction n (Identity a) (Identity a))
+  => (SpecialisedFunction o (Identity a) (Identity a))
+  => (SpecialisedFunction (Deriv n) (Identity a) (Grad Identity a))
+  => (SpecialisedFunction (Deriv o) (Identity a) (Grad Identity a))
   => Vector (Vector a, Vector a)
   -> NN n o a
   -> (a, Grad (NN n o) a)
@@ -339,23 +342,22 @@ backprop dataset = go
         finalLayer = g prefinalNeuronLayer finalLayerWeights
 
         f :: Vector (a, a, Vector a) -> Vector (Vector a) -> Vector (a, a, Vector a)
-        f prevLayer layer = V.map useLayer layer
+        f prevLayer layers = V.map useLayer layers
           where
             useLayer :: Vector a -> (a, a, Vector a)
             useLayer ws = (x, deds, ws)
               where
-                nn' = NonlinearityProxy nn
-                s :: a
-                s    = V.head ws +! dot' prevLayer (V.tail ws)
-                x    = sfmap nn' s
-                deds = sfmap (addDerivInProxy nn') s
+                nn'                  = NonlinearityProxy nn
+                s                    = V.head ws +! dot' prevLayer (V.tail ws)
+                Identity x           = sfmap nn' $ Identity s
+                Grad (Identity deds) = sfmap (addDerivInProxy nn') $ Identity s
 
         g :: Vector (a, a, Vector a) -> Vector (Vector a) -> Vector (a, a, Vector a)
         g prevLayer layer =
-          V.map (\ws -> let s    = V.head ws +! dot' prevLayer (V.tail ws)
-                            nn'  = OutputProxy nn
-                            x    = sfmap nn' s
-                            deds = sfmap (addDerivInProxy nn') s
+          V.map (\ws -> let s                    = V.head ws +! dot' prevLayer (V.tail ws)
+                            nn'                  = OutputProxy nn
+                            Identity x           = sfmap nn' $ Identity s
+                            Grad (Identity deds) = sfmap (addDerivInProxy nn') $ Identity s
                         in (x, deds, ws))
                 layer
 
