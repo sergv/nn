@@ -11,11 +11,12 @@
 --
 ----------------------------------------------------------------------------
 
-{-# LANGUAGE DeriveFunctor         #-}
 {-# LANGUAGE DeriveFoldable        #-}
+{-# LANGUAGE DeriveFunctor         #-}
 {-# LANGUAGE DeriveTraversable     #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns        #-}
 {-# LANGUAGE OverloadedStrings     #-}
@@ -46,6 +47,7 @@ import Data.ConstrainedConvert (Convert)
 import qualified Data.ConstrainedConvert as Conv
 import Data.ConstrainedFunctor
 import Data.Nonlinearity
+import Data.SpecialisedFunction
 import Data.Zippable
 import Util
 
@@ -173,7 +175,8 @@ makeNN inputLayerSize hiddenLayerSizes finalLayerSize mkElem =
 
 -- {-# SPECIALIZE forwardPropagate :: NN n o Double -> Vector Double -> Vector Double #-}
 forwardPropagate
-  :: forall a n o. (Floating a, Nonlinearity n, Nonlinearity o)
+  :: forall a n o. (Floating a)
+  => (VectorisedNonlinearity n Vector, VectorisedNonlinearity o Vector)
   => NN n o a
   -> Vector a
   -> Vector a
@@ -182,32 +185,35 @@ forwardPropagate nn@(NN hiddenLayers finalLayer) input =
     (V.foldl' (f (nonlinearity (NonlinearityProxy nn))) input hiddenLayers)
     finalLayer
   where
-    f :: (a -> a) -> Vector a -> Vector (Vector a) -> Vector a
+    f :: (Vector a -> Vector a) -> Vector a -> Vector (Vector a) -> Vector a
     f activation prev layer =
-      V.map (\ws -> activation $
-                    V.head ws +! dot prev (V.tail ws))
-            layer
+      activation $
+      V.map (\ws -> V.head ws +! dot prev (V.tail ws)) layer
 
 targetFunction
-  :: (Floating a, Nonlinearity n, Nonlinearity o)
+  :: (Floating a)
+  => (VectorisedNonlinearity n Vector, VectorisedNonlinearity o Vector)
   => Vector (Vector a, Vector a)
   -> NN n o a
   -> a
 targetFunction dataset nn =
   V.sum $
-  V.map (\(x, y) -> vectorSize' $
-                    V.zipWith (-!) (forwardPropagate nn x) y)
+  V.map (\(x, y) -> vectorSize' $ V.zipWith (-!) (forwardPropagate nn x) y)
         dataset
 
 targetFunctionGrad
-  :: forall n o a. (Floating a, Nonlinearity n, Nonlinearity o)
+  :: forall n o a. (Floating a)
+  => (VectorisedNonlinearity n Vector, VectorisedNonlinearity o Vector)
   => Vector (Vector a, Vector a)
   -> NN n o a
   -> (a, Grad (NN n o) a)
-targetFunctionGrad dataset = \nn -> second Grad $ grad' (targetFunction' dataset) nn
+-- targetFunctionGrad dataset nn =
+--   second Grad $ grad' (targetFunction (V.map (V.map auto *** V.map auto) dataset)) nn
+targetFunctionGrad dataset =
+  \nn -> second Grad $ grad' (targetFunction' dataset) nn
   where
     targetFunction'
-      :: (Floating b, Mode b, Nonlinearity n, Nonlinearity o)
+      :: (Floating b, Mode b)
       => Vector (Vector (Scalar b), Vector (Scalar b))
       -> NN n o b
       -> b
@@ -215,7 +221,9 @@ targetFunctionGrad dataset = \nn -> second Grad $ grad' (targetFunction' dataset
       targetFunction (V.map (V.map auto *** V.map auto) dataset)
 
 backprop
-  :: forall n o a. (Floating a, Show a, Nonlinearity n, Nonlinearity o)
+  :: forall n o a. (Floating a, Show a)
+  => (SpecialisedFunction n a a, SpecialisedFunction o a a)
+  => (SpecialisedFunction (Deriv n) a a, SpecialisedFunction (Deriv o) a a)
   => Vector (Vector a, Vector a)
   -> NN n o a
   -> (a, Grad (NN n o) a)
@@ -338,15 +346,15 @@ backprop dataset = go
                 nn' = NonlinearityProxy nn
                 s :: a
                 s    = V.head ws +! dot' prevLayer (V.tail ws)
-                x    = nonlinearity nn' s
-                deds = nonlinearityDeriv nn' s
+                x    = sfmap nn' s
+                deds = sfmap (addDerivInProxy nn') s
 
         g :: Vector (a, a, Vector a) -> Vector (Vector a) -> Vector (a, a, Vector a)
         g prevLayer layer =
           V.map (\ws -> let s    = V.head ws +! dot' prevLayer (V.tail ws)
                             nn'  = OutputProxy nn
-                            x    = nonlinearity nn' s
-                            deds = nonlinearityDeriv nn' s
+                            x    = sfmap nn' s
+                            deds = sfmap (addDerivInProxy nn') s
                         in (x, deds, ws))
                 layer
 
@@ -361,9 +369,9 @@ backprop dataset = go
             xsLen = V.length xs
             ysLen = V.length ys
 
-
 targetFunctionGradNumerical
-  :: forall n o a. (Floating a, Nonlinearity n, Nonlinearity o)
+  :: forall n o a. (Floating a)
+  => (VectorisedNonlinearity n Vector, VectorisedNonlinearity o Vector)
   => a
   -> Vector (Vector a, Vector a)
   -> NN n o a

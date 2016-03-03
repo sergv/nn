@@ -26,16 +26,16 @@
 
 module Data.OpenBlasMatrix (OpenBlasMatrix) where
 
-import Prelude hiding (zipWith, zipWith3)
 import Control.DeepSeq
-import Foreign.Ptr
-import Data.Monoid
 import qualified Data.List as L
+import Data.Monoid
 import qualified Data.Vector.Storable as S
 import qualified Data.Vector.Storable.Mutable as SM
+import Foreign.Ptr
+import Prelude hiding (zipWith, zipWith3)
+import System.IO.Unsafe
 import Text.PrettyPrint.Leijen.Text (Pretty(..), Doc)
 import qualified Text.PrettyPrint.Leijen.Text as PP
-import System.IO.Unsafe
 
 import qualified Data.Aligned as Aligned
 import Data.AlignedStorableVector (AlignedStorableVector(..))
@@ -43,11 +43,11 @@ import qualified Data.AlignedStorableVector as ASV
 import Data.ConstrainedConvert (Convert)
 import qualified Data.ConstrainedConvert as Conv
 import Data.ConstrainedFunctor
+import Data.MatrixClass
 import Data.Nonlinearity
 import Data.OpenBlasEnums
 import Data.SpecialisedFunction
 import Data.StorableMatrixWithTranspose (StorableMatrixWithTranspose(..))
-import Data.MatrixClass
 import qualified Data.VectClass as VC
 import Data.Zippable
 import Util
@@ -333,6 +333,38 @@ instance
   where
   {-# INLINABLE sfmap #-}
   sfmap _ = mapForeignFunc Aligned.mapExp
+
+instance
+  (ElemConstraints OpenBlasMatrix a)
+  =>
+  SpecialisedFunction Sigmoid (OpenBlasMatrix a) (OpenBlasMatrix a)
+  where
+  {-# INLINABLE sfmap #-}
+  sfmap _ = mapForeignFunc Aligned.mapSigmoid
+
+instance
+  (ElemConstraints OpenBlasMatrix a)
+  =>
+  SpecialisedFunction (Deriv Sigmoid) (OpenBlasMatrix a) (OpenBlasMatrix a)
+  where
+  {-# INLINABLE sfmap #-}
+  sfmap _ = mapForeignFunc Aligned.mapSigmoidDeriv
+
+instance
+  (ElemConstraints OpenBlasMatrix a)
+  =>
+  SpecialisedFunction HyperbolicTangent (OpenBlasMatrix a) (OpenBlasMatrix a)
+  where
+  {-# INLINABLE sfmap #-}
+  sfmap _ = mapForeignFunc Aligned.mapTanh
+
+instance
+  (ElemConstraints OpenBlasMatrix a)
+  =>
+  SpecialisedFunction (Deriv HyperbolicTangent) (OpenBlasMatrix a) (OpenBlasMatrix a)
+  where
+  {-# INLINABLE sfmap #-}
+  sfmap _ = mapForeignFunc Aligned.mapTanhDeriv
 
 mapForeignFunc
   :: (ElemConstraints OpenBlasMatrix a)

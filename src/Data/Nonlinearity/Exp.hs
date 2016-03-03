@@ -19,18 +19,28 @@
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE UndecidableInstances  #-}
 
-module Data.Nonlinearity.Exp where
+module Data.Nonlinearity.Exp (Exp) where
 
 import Data.ConstrainedFunctor
-import Data.Nonlinearity.Internal
+import Data.Nonlinearity.Proxies
+import Data.Proxy
 import Data.SpecialisedFunction
 import Util ()
 
 data Exp
-data instance FuncWithDeriv Exp = ExpWithDeriv
+data instance Deriv Exp
+data instance FuncWithDeriv Exp
 
 instance PrettyProxy Exp where
   prettyProxy _ = "Exp"
+
+instance {-# OVERLAPPABLE #-} (Floating a) => SpecialisedFunction Exp a a where
+  {-# INLINABLE sfmap #-}
+  sfmap _ = exp
+
+instance {-# OVERLAPPABLE #-} (Floating a) => SpecialisedFunction (Deriv Exp) a a where
+  {-# INLINABLE sfmap #-}
+  sfmap _ = exp
 
 instance {-# OVERLAPPABLE #-}
   (ConstrainedFunctor f, ElemConstraints f a, Floating a)
@@ -41,19 +51,17 @@ instance {-# OVERLAPPABLE #-}
 
 instance {-# OVERLAPPABLE #-}
   (ConstrainedFunctor f, ElemConstraints f a, Floating a)
+  => SpecialisedFunction (Deriv Exp) (f a) (f a)
+  where
+  {-# INLINABLE sfmap #-}
+  sfmap _ = cfmap exp
+
+instance {-# OVERLAPPABLE #-}
+  (ConstrainedFunctor f, ElemConstraints f a, Floating a)
   => SpecialisedFunction (FuncWithDeriv Exp) (f a) (f a, f a)
   where
   {-# INLINABLE sfmap #-}
-  sfmap p w = (cfmap f w, cfmap g w)
+  sfmap _ w = (f w, g w)
     where
-      f = nonlinearity (stripFuncWithDerivInProxy p)
-      g = nonlinearityDeriv (stripFuncWithDerivInProxy p)
-      -- g x = x' /! (x'' *! x'')
-      --   where
-      --     x'  = exp x
-      --     x'' = (1 +! x')
-
-instance Nonlinearity Exp where
-  {-# INLINABLE nonlinearity #-}
-  nonlinearity _ = exp
-  nonlinearityDeriv _ = exp
+      f = sfmap (Proxy :: Proxy Exp)
+      g = sfmap (Proxy :: Proxy (Deriv Exp))

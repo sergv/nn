@@ -70,11 +70,6 @@ class (Vect v, ElemConstraints v ~ ElemConstraints w) => Matrix w v | w -> v whe
   --   where
   --     matrSquares = cfmap (\x -> x * x) matr
   --     v = VC.replicate (columns matr) 1
-  exp :: (ElemConstraints w a, Floating a) => w a -> w a
-  default exp
-    :: (ElemConstraints w a, Floating a, ConstrainedFunctor w)
-    => w a -> w a
-  exp = cfmap P.exp
 
 showMatrixSize :: (Matrix w v) => w a -> String
 showMatrixSize x = show (rows x) ++ "x" ++ show (columns x)

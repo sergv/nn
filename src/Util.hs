@@ -36,8 +36,9 @@ import Data.ConstrainedFunctor
 
 -- Other utils
 
+-- | Documentation wrapper to distinguish gradients from vanilla vectors.
 newtype Grad f a = Grad { getGrad :: f a }
-                 deriving (Show, Eq, Ord, Functor, Foldable, Traversable)
+  deriving (Show, Eq, Ord, Functor, Foldable, Traversable)
 
 instance (ConstrainedFunctor f) => ConstrainedFunctor (Grad f) where
   type (ElemConstraints (Grad f)) = ElemConstraints f
@@ -95,10 +96,10 @@ infixl 7 /!
 instance (Pretty a) => Pretty (Vector a) where
   pretty = pretty . V.toList
 
-
+-- | Monadically build weight list for  'fromWeightList' function.
 makeWeightList :: forall m a. (Monad m) => Int -> [Int] -> Int -> m a -> m [[[a]]]
 makeWeightList inputLayerSize hiddenLayerSizes finalLayerSize mkElem = do
-  (lastHiddenSize, hiddenLayersRev) <- foldM f (inputLayerSize, []) hiddenLayerSizes
+  (lastHiddenSize, hiddenLayersRev) <- foldM mkHiddenLayer (inputLayerSize, []) hiddenLayerSizes
   finalLayer                        <- mkLayer finalLayerSize lastHiddenSize
   return $ reverse $ finalLayer : hiddenLayersRev
   where
@@ -107,11 +108,13 @@ makeWeightList inputLayerSize hiddenLayerSizes finalLayerSize mkElem = do
       where
         prevSizeWithBias = prevSize + 1
 
-    f :: (Int, [[[a]]]) -> Int -> m (Int, [[[a]]])
-    f (prevSize, layers) size = do
+    mkHiddenLayer :: (Int, [[[a]]]) -> Int -> m (Int, [[[a]]])
+    mkHiddenLayer (prevSize, layers) size = do
       layer <- mkLayer size prevSize
       return (size, layer : layers)
 
+-- | Split vector @vs@ into chunks of size @n@ and a leftover chunk, whose
+-- size is not multiple of @n@.
 splitVec :: Int -> Vector a -> ([Vector a], Vector a)
 splitVec n vs =
   (map (mkVec . (, n)) [0..lastSlice - 1 - i], mkVec (lastSlice - i, lastSize'))

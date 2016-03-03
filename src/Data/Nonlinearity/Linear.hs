@@ -18,18 +18,27 @@
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE UndecidableInstances  #-}
 
-module Data.Nonlinearity.Linear where
+module Data.Nonlinearity.Linear (Linear) where
 
 import Data.ConstrainedFunctor
-import Data.Nonlinearity.Internal
+import Data.Nonlinearity.Proxies
+import Data.Proxy
 import Data.SpecialisedFunction
 
 data Linear
--- data instance Deriv Linear = LinearDeriv
-data instance FuncWithDeriv Linear = LinearWithDeriv
+data instance Deriv Linear
+data instance FuncWithDeriv Linear
 
 instance PrettyProxy Linear where
   prettyProxy _ = "Linear"
+
+instance {-# OVERLAPPABLE #-} (Floating a) => SpecialisedFunction Linear a a where
+  {-# INLINABLE sfmap #-}
+  sfmap _ = id
+
+instance {-# OVERLAPPABLE #-} (Floating a) => SpecialisedFunction (Deriv Linear) a a where
+  {-# INLINABLE sfmap #-}
+  sfmap _ = const 1
 
 instance {-# OVERLAPPABLE #-}
   (ConstrainedFunctor f, ElemConstraints f a, Floating a)
@@ -39,13 +48,18 @@ instance {-# OVERLAPPABLE #-}
   sfmap _ = id
 
 instance {-# OVERLAPPABLE #-}
+  (ConstrainedFunctor f, ElemConstraints f a, Floating a, Num a)
+  => SpecialisedFunction (Deriv Linear) (f a) (f a)
+  where
+  {-# INLINABLE sfmap #-}
+  sfmap _ = cfmap (const 1)
+
+instance {-# OVERLAPPABLE #-}
   (ConstrainedFunctor f, ElemConstraints f a, Floating a)
   => SpecialisedFunction (FuncWithDeriv Linear) (f a) (f a, f a)
   where
   {-# INLINABLE sfmap #-}
-  sfmap _ w = (w, cfmap (const 1) w)
-
-instance Nonlinearity Linear where
-  {-# INLINABLE nonlinearity #-}
-  nonlinearity _ = id
-  nonlinearityDeriv _ = const 1
+  sfmap _ w = (f w, g w)
+    where
+      f = sfmap (Proxy :: Proxy Linear)
+      g = sfmap (Proxy :: Proxy (Deriv Linear))

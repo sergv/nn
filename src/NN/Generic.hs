@@ -31,15 +31,16 @@
 
 module NN.Generic where
 
-import Prelude hiding (zipWith, zipWith3)
 import Control.Arrow
+import Control.DeepSeq
 import Control.Monad.Except
 import Control.Monad.State
-import Control.DeepSeq
 import qualified Data.List as L
 import Data.Monoid
+import Data.Proxy
 import Data.Vector (Vector)
 import qualified Data.Vector as V
+import Prelude hiding (zipWith, zipWith3)
 import Text.PrettyPrint.Leijen.Text (Pretty(..), Doc)
 import qualified Text.PrettyPrint.Leijen.Text as PP
 
@@ -60,8 +61,8 @@ import Util
 
 import Data.Aligned.Double (AlignedDouble)
 import Data.Aligned.Float (AlignedFloat)
-import Data.OpenBlasMatrix (OpenBlasMatrix)
 import Data.AlignedStorableVector (AlignedStorableVector)
+import Data.OpenBlasMatrix (OpenBlasMatrix)
 
 -- w - matrix
 -- v - vector
@@ -69,9 +70,9 @@ import Data.AlignedStorableVector (AlignedStorableVector)
 -- o - output type
 -- a - element type
 data NN w v n o a =
-  NN {-# UNPACK #-} !(Vector (v a, w a)) -- hidden layers, each is a pair of bias vector and
-                                         -- weights matrix
-     {-# UNPACK #-} !(v a, w a)          -- final layer bias and weights
+  NN {-# UNPACK #-} !(Vector (v a, w a)) -- ^ Hidden layers, each is a pair of bias vector and
+                                         -- weights matrix.
+     {-# UNPACK #-} !(v a, w a)          -- ^ Final layer bias and weights.
      deriving (Functor, Foldable, Traversable)
 
 deriving instance (Show (v a), Show (w a)) => Show (NN w v n o a)
@@ -255,7 +256,8 @@ makeNN inputLayerSize hiddenLayerSizes finalLayerSize mkElem =
   makeWeightList inputLayerSize hiddenLayerSizes finalLayerSize mkElem
 
 forwardPropagate
-  :: forall w v a n o. (Matrix w v, Floating a, Nonlinearity n, Nonlinearity o)
+  :: forall w v a n o. (Matrix w v, Floating a)
+  => (VectorisedNonlinearity n v, VectorisedNonlinearity o v)
   => (Vect v, ConstrainedFunctor v)
   => (ElemConstraints v ~ ElemConstraints w, ElemConstraints w a)
   => NN w v n o a
@@ -266,14 +268,14 @@ forwardPropagate nn@(NN hiddenLayers finalLayer) input =
     (V.foldl' (f (nonlinearity (NonlinearityProxy nn))) input hiddenLayers)
     finalLayer
   where
-    f :: (a -> a) -> v a -> (v a, w a) -> v a
+    f :: (v a -> v a) -> v a -> (v a, w a) -> v a
     f activation prev (bias, layer) =
-      cfmap activation $ bias .+. MC.vecMulRight layer prev
+      activation $ bias .+. MC.vecMulRight layer prev
 
 targetFunction
   :: (Matrix w v, Vect v, ConstrainedFunctor v, Floating a)
   => (ElemConstraints v ~ ElemConstraints w, ElemConstraints w a)
-  => (Nonlinearity n, Nonlinearity o)
+  => (VectorisedNonlinearity n v, VectorisedNonlinearity o v)
   => Vector (v a, v a)
   -> NN w v n o a
   -> a
@@ -286,7 +288,7 @@ targetFunction dataset nn =
 targetFunctionGrad
   :: forall w v n o a. (Matrix w v, Traversable w, ElemConstraints w ~ IdConstraint)
   => (Vect v, ConstrainedFunctor v, Traversable v, ElemConstraints v ~ IdConstraint)
-  => (Nonlinearity n, Nonlinearity o)
+  => (VectorisedNonlinearity n v, VectorisedNonlinearity o v)
   => (Floating a)
   => Vector (v a, v a)
   -> NN w v n o a
@@ -323,6 +325,7 @@ splitDataset n xs =
         yss = {-L.transpose $-} V.toList $ fmap (VC.toList . snd) ws
 
 {-# INLINABLE backprop #-}
+-- | Backpropagate neural network on a given @dataset@, chunk by chunk.
 backprop
   :: forall w v n o a. (Matrix w v, ConstrainedFunctor w, Zippable w)
   => (Vect v, ConstrainedFunctor v)
@@ -347,20 +350,23 @@ backprop chunkSize dataset
       where
         (fullChunks, lastChunk, lastSize) = splitDataset chunkSize dataset
 
+        computeFull :: w a -> w a -> (a, Grad (NN w v n o) a)
         computeFull = computeBatch hiddenLayersFull finalLayerFull
         hiddenLayersFull :: Vector (w a, w a)
         hiddenLayersFull = V.map (first (broadcastBias chunkSize)) hiddenLayers
         finalLayerFull :: (w a, w a)
         finalLayerFull = first (broadcastBias chunkSize) finalLayer
 
+        computeLast :: w a -> w a -> (a, Grad (NN w v n o) a)
         computeLast = computeBatch hiddenLayersLast finalLayerLast
         hiddenLayersLast :: Vector (w a, w a)
         hiddenLayersLast = V.map (first (broadcastBias lastSize)) hiddenLayers
         finalLayerLast :: (w a, w a)
         finalLayerLast = first (broadcastBias lastSize) finalLayer
 
+        -- Lift bias vector into single-column bias matrix.
         broadcastBias :: Int -> v a -> w a
-        broadcastBias size bias = MC.outerProduct bias broadcastVector
+        broadcastBias size biasVector = MC.outerProduct biasVector broadcastVector
           where
             broadcastVector :: v a
             broadcastVector = VC.replicate size 1
@@ -449,7 +455,6 @@ backprop chunkSize dataset
                 deltas :: w a
                 deltas = zipWith mul layerDeriv
                        $ MC.matrixMultByTransposedLeft weights' deltas'
-                       -- MC.vecMulRight (MC.transpose weights') deltas'
                 mul deds weightedDeltas = deds *! weightedDeltas
 
     combineAdd :: (a, Grad (NN w v n o) a) -> (a, Grad (NN w v n o) a) -> (a, Grad (NN w v n o) a)
@@ -484,7 +489,6 @@ backprop chunkSize dataset
         f :: (w a, b, c) -> (w a, w a) -> (w a, w a, w a)
         f (prevLayer, _prevLayerDeriv, _prevWeights) (bias, weights) =
           (nonlin, nonlinDeriv, weights)
-          -- (cfmap (nonlinearity nn) ss, cfmap (nonlinearityDeriv nn) ss, weights)
           where
             ss :: w a
             ss = bias |+| MC.matrixMult weights prevLayer
@@ -498,13 +502,17 @@ backprop chunkSize dataset
             ss = bias |+| MC.matrixMult layer prevLayer
             -- (output, outputDeriv) = sfmap nnOutputDerivProxy ss
 
+        nnNonlinDerivProxy :: Proxy (FuncWithDeriv n)
         nnNonlinDerivProxy = addFuncWithDerivInProxy $ NonlinearityProxy nn
+        nnOutputDerivProxy :: Proxy (FuncWithDeriv o)
         nnOutputDerivProxy = addFuncWithDerivInProxy $ OutputProxy nn
 
+-- | Calculate target function gradient numerically.
 targetFunctionGradNumerical
   :: forall w v n o a. (Matrix w v, Functor w, Traversable w, ElemConstraints w a, ElemConstraints w ~ IdConstraint)
   => (Vect v, ConstrainedFunctor v, Traversable v, ElemConstraints v ~ IdConstraint)
-  => (Nonlinearity n, Nonlinearity o, Floating a)
+  => (Floating a)
+  => (VectorisedNonlinearity n v, VectorisedNonlinearity o v)
   => a
   -> Vector (v a, v a)
   -> NN w v n o a
@@ -537,8 +545,6 @@ instance forall w v n o a.
          , Vect v
          , ElemConstraints v a
          , Show a
-         , Nonlinearity n
-         , Nonlinearity o
          , PrettyProxy n
          , PrettyProxy o
          )

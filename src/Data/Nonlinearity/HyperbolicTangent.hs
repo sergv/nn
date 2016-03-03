@@ -18,18 +18,34 @@
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE UndecidableInstances  #-}
 
-module Data.Nonlinearity.HyperbolicTangent where
+module Data.Nonlinearity.HyperbolicTangent (HyperbolicTangent) where
 
 import Data.ConstrainedFunctor
-import Data.Nonlinearity.Internal
+import Data.Nonlinearity.Proxies
+import Data.Proxy
 import Data.SpecialisedFunction
 import Util
 
 data HyperbolicTangent
-data instance FuncWithDeriv HyperbolicTangent = HyperbolicTangentWithDeriv
+data instance Deriv HyperbolicTangent
+data instance FuncWithDeriv HyperbolicTangent
 
 instance PrettyProxy HyperbolicTangent where
   prettyProxy _ = "HyperbolicTangent"
+
+{-# INLINE tanhDeriv #-}
+tanhDeriv :: (Floating a) => a -> a
+tanhDeriv x = 1 -! nonlin *! nonlin
+  where
+    nonlin = tanh x
+
+instance {-# OVERLAPPABLE #-} (Floating a) => SpecialisedFunction HyperbolicTangent a a where
+  {-# INLINABLE sfmap #-}
+  sfmap _ = tanh
+
+instance {-# OVERLAPPABLE #-} (Floating a) => SpecialisedFunction (Deriv HyperbolicTangent) a a where
+  {-# INLINABLE sfmap #-}
+  sfmap _ = tanhDeriv
 
 instance {-# OVERLAPPABLE #-}
   (ConstrainedFunctor f, ElemConstraints f a, Floating a)
@@ -40,23 +56,17 @@ instance {-# OVERLAPPABLE #-}
 
 instance {-# OVERLAPPABLE #-}
   (ConstrainedFunctor f, ElemConstraints f a, Floating a)
+  => SpecialisedFunction (Deriv HyperbolicTangent) (f a) (f a)
+  where
+  {-# INLINABLE sfmap #-}
+  sfmap _ = cfmap tanhDeriv
+
+instance {-# OVERLAPPABLE #-}
+  (ConstrainedFunctor f, ElemConstraints f a, Floating a)
   => SpecialisedFunction (FuncWithDeriv HyperbolicTangent) (f a) (f a, f a)
   where
   {-# INLINABLE sfmap #-}
-  sfmap p w = (cfmap f w, cfmap g w)
+  sfmap _ w = (f w, g w)
     where
-      f = nonlinearity (stripFuncWithDerivInProxy p)
-      g = nonlinearityDeriv (stripFuncWithDerivInProxy p)
-  -- sfmap _ w = (cfmap f w, cfmap g w)
-  --   where
-  --     f = tanh
-  --     g x = 1 - x' *! x'
-  --       where
-  --         x'  = f x
-
-instance Nonlinearity HyperbolicTangent where
-  {-# INLINABLE nonlinearity #-}
-  nonlinearity      _ x = tanh x
-  nonlinearityDeriv p x = 1 -! nonlin *! nonlin
-    where
-      nonlin = nonlinearity p x
+      f = sfmap (Proxy :: Proxy HyperbolicTangent)
+      g = sfmap (Proxy :: Proxy (Deriv HyperbolicTangent))

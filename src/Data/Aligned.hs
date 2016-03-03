@@ -26,6 +26,7 @@ import qualified Data.Aligned.Double.Foreign as DF
 import Data.Aligned.Float
 import qualified Data.Aligned.Float.Foreign as FF
 
+-- | Storable values that support BLAS operations.
 class (Storable a) => Aligned a where
   -- | Matrix-vector multiplication
   -- y = alpha * A * x + beta * y
@@ -100,6 +101,30 @@ class (Storable a) => Aligned a where
     -> Ptr a -- ^ input
     -> Ptr a -- ^ output
     -> IO ()
+  -- | Input and output must be aligned to 32 bit and must not overlap.
+  mapSigmoid
+    :: Int
+    -> Ptr a -- ^ input
+    -> Ptr a -- ^ output
+    -> IO ()
+  -- | Input and output must be aligned to 32 bit and must not overlap.
+  mapSigmoidDeriv
+    :: Int
+    -> Ptr a -- ^ input
+    -> Ptr a -- ^ output
+    -> IO ()
+  -- | Input and output must be aligned to 32 bit and must not overlap.
+  mapTanh
+    :: Int
+    -> Ptr a -- ^ input
+    -> Ptr a -- ^ output
+    -> IO ()
+  -- | Input and output must be aligned to 32 bit and must not overlap.
+  mapTanhDeriv
+    :: Int
+    -> Ptr a -- ^ input
+    -> Ptr a -- ^ output
+    -> IO ()
   -- | Input and outputs must be aligned to 32 bit and must not overlap.
   mapSigmoidWithDeriv
     :: Int
@@ -132,6 +157,10 @@ instance Aligned AlignedFloat where
   addVectorsScaled n x (AlignedFloat c) y z = FF.addVectorsScaledf (cuint n) x c y z
   dotProduct n x y = AlignedFloat <$> FF.dotProductf (cuint n) x y
   mapExp n x y                = FF.mapExp              (cuint n) x y
+  mapSigmoid n x y            = FF.mapSigmoid          (cuint n) x y
+  mapSigmoidDeriv n x y       = FF.mapSigmoidDeriv     (cuint n) x y
+  mapTanh n x y               = FF.mapTanh             (cuint n) x y
+  mapTanhDeriv n x y          = FF.mapTanhDeriv        (cuint n) x y
   mapSigmoidWithDeriv n x y z = FF.mapSigmoidWithDeriv (cuint n) x y z
   mapTanhWithDeriv n x y z    = FF.mapTanhWithDeriv    (cuint n) x y z
 
@@ -146,6 +175,10 @@ instance Aligned AlignedDouble where
   addVectorsScaled n x (AlignedDouble c) y z = DF.addVectorsScaled (cuint n) x c y z
   dotProduct n x y = AlignedDouble <$> DF.dotProduct (cuint n) x y
   mapExp n x y                = DF.mapExp              (cuint n) x y
+  mapSigmoid n x y            = DF.mapSigmoid          (cuint n) x y
+  mapSigmoidDeriv n x y       = DF.mapSigmoidDeriv     (cuint n) x y
+  mapTanh n x y               = DF.mapTanh             (cuint n) x y
+  mapTanhDeriv n x y          = DF.mapTanhDeriv        (cuint n) x y
   mapSigmoidWithDeriv n x y z = DF.mapSigmoidWithDeriv (cuint n) x y z
   mapTanhWithDeriv n x y z    = DF.mapTanhWithDeriv    (cuint n) x y z
 

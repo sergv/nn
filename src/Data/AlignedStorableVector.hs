@@ -48,6 +48,7 @@ import qualified Data.VectClass as VC
 import Data.Zippable
 import Util hiding (takeBy)
 
+-- | Specialization of 'Data.Vector.Storable.Vector' to 'Data.Aligned' class.
 newtype AlignedStorableVector a = AlignedStorableVector
   { getAlignedStorableVector :: S.Vector a }
   deriving (Show, Eq, Ord, NFData)

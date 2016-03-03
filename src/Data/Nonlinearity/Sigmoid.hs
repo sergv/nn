@@ -18,18 +18,40 @@
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE UndecidableInstances  #-}
 
-module Data.Nonlinearity.Sigmoid (Sigmoid, FuncWithDeriv(..)) where
+module Data.Nonlinearity.Sigmoid (Sigmoid) where
 
 import Data.ConstrainedFunctor
-import Data.Nonlinearity.Internal
+import Data.Nonlinearity.Proxies
+import Data.Proxy
 import Data.SpecialisedFunction
 import Util
 
 data Sigmoid
-data instance FuncWithDeriv Sigmoid = SigmoidWithDeriv
+data instance Deriv Sigmoid
+data instance FuncWithDeriv Sigmoid
 
 instance PrettyProxy Sigmoid where
   prettyProxy _ = "Sigmoid"
+
+{-# INLINE sigmoid #-}
+sigmoid :: (Floating a) => a -> a
+sigmoid x = x' /! (1 +! x')
+    where
+      x' = exp x
+
+{-# INLINE sigmoidDeriv #-}
+sigmoidDeriv :: (Floating a) => a -> a
+sigmoidDeriv x = x' /! (1 +! x')^2
+    where
+      x' = exp x
+
+instance {-# OVERLAPPABLE #-} (Floating a) => SpecialisedFunction Sigmoid a a where
+  {-# INLINABLE sfmap #-}
+  sfmap _ = sigmoid
+
+instance {-# OVERLAPPABLE #-} (Floating a) => SpecialisedFunction (Deriv Sigmoid) a a where
+  {-# INLINABLE sfmap #-}
+  sfmap _ = sigmoidDeriv
 
 instance {-# OVERLAPPABLE #-}
   (ConstrainedFunctor f, ElemConstraints f a, Floating a)
@@ -40,27 +62,17 @@ instance {-# OVERLAPPABLE #-}
 
 instance {-# OVERLAPPABLE #-}
   (ConstrainedFunctor f, ElemConstraints f a, Floating a)
+  => SpecialisedFunction (Deriv Sigmoid) (f a) (f a)
+  where
+  {-# INLINABLE sfmap #-}
+  sfmap _ = cfmap sigmoidDeriv
+
+instance {-# OVERLAPPABLE #-}
+  (ConstrainedFunctor f, ElemConstraints f a, Floating a)
   => SpecialisedFunction (FuncWithDeriv Sigmoid) (f a) (f a, f a)
   where
   {-# INLINABLE sfmap #-}
-  sfmap p w = (cfmap f w, cfmap g w)
+  sfmap _ w = (f w, g w)
     where
-      f = nonlinearity (stripFuncWithDerivInProxy p)
-      g = nonlinearityDeriv (stripFuncWithDerivInProxy p)
-      -- g x = x' /! (x'' *! x'')
-      --   where
-      --     x'  = exp x
-      --     x'' = (1 +! x')
-
-instance Nonlinearity Sigmoid where
-  {-# INLINABLE nonlinearity #-}
-  nonlinearity _ = sigmoid
-  nonlinearityDeriv _ x = x' /! (1 +! x')^2
-    where
-      x' = exp x
-
-{-# INLINE sigmoid #-}
-sigmoid :: (Floating a) => a -> a
-sigmoid x = x' /! (1 +! x')
-    where
-      x' = exp x
+      f = sfmap (Proxy :: Proxy Sigmoid)
+      g = sfmap (Proxy :: Proxy (Deriv Sigmoid))

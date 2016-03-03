@@ -22,25 +22,13 @@ module Data.SpecialisedFunction where
 
 import Data.Proxy
 
+-- | Class to generalize over proxies of 'a'.
 class IsProxyFor p a | p -> a where
-
--- instance IsProxyFor (p a) a
---
--- instance IsProxyFor (p a b) a
--- -- instance IsProxyFor (p a b) b
---
--- instance IsProxyFor (p a b c) a
--- -- instance IsProxyFor (p a b c) b
--- -- instance IsProxyFor (p a b c) c
---
--- instance IsProxyFor (p a b c d) a
--- -- instance IsProxyFor (p a b c d) b
--- -- instance IsProxyFor (p a b c d) c
--- -- instance IsProxyFor (p a b c d) d
 
 instance IsProxyFor (Proxy a) a
 
--- | Functor that applies statically known function.
+-- | Functor that applies statically known function. Allows to specialize it
+-- to particular types in order to override some instances.
 -- h - function that fmap would apply
 -- p - proxy to determine the function h
 class SpecialisedFunction (h :: k) a b | h a -> b where

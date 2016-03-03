@@ -23,7 +23,7 @@ library
                        Data.Nonlinearity
                        Data.Nonlinearity.Exp
                        Data.Nonlinearity.HyperbolicTangent
-                       Data.Nonlinearity.Internal
+                       Data.Nonlinearity.Proxies
                        Data.Nonlinearity.Linear
                        Data.Nonlinearity.Sigmoid
                        Data.OpenBlasEnums
