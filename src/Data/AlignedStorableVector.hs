@@ -38,8 +38,7 @@ import Text.PrettyPrint.Leijen.Text (Pretty(..))
 import System.IO.Unsafe
 
 import qualified Data.Aligned as Aligned
-import Data.ConstrainedConvert (Convert)
-import qualified Data.ConstrainedConvert as Conv
+import Data.ConstrainedIsomorphism (ConstrainedIsomorphism(..))
 import Data.ConstrainedFunctor
 import Data.Nonlinearity
 import Data.SpecialisedFunction
@@ -69,7 +68,7 @@ instance Zippable AlignedStorableVector where
   zipWith3 f (AlignedStorableVector xs) (AlignedStorableVector ys) (AlignedStorableVector zs) = AlignedStorableVector $ S.zipWith3 f xs ys zs
   zipWith4 f (AlignedStorableVector xs) (AlignedStorableVector ys) (AlignedStorableVector zs) (AlignedStorableVector ws) = AlignedStorableVector $ S.zipWith4 f xs ys zs ws
 
-instance Convert AlignedStorableVector S.Vector where
+instance ConstrainedIsomorphism AlignedStorableVector S.Vector where
   {-# INLINABLE convertTo   #-}
   {-# INLINABLE convertFrom #-}
   convertTo   = getAlignedStorableVector

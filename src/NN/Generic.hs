@@ -48,8 +48,8 @@ import qualified Text.PrettyPrint.Leijen.Text as PP
 import Data.Random.Source.PureMT ()
 import Numeric.AD hiding (grad, Grad)
 
-import Data.ConstrainedConvert (Convert)
-import qualified Data.ConstrainedConvert as Conv
+import Data.ConstrainedIsomorphism (ConstrainedIsomorphism)
+import qualified Data.ConstrainedIsomorphism as Iso
 import Data.ConstrainedFunctor
 import Data.Grad
 import Data.MatrixClass (Matrix, (|+|))
@@ -84,11 +84,12 @@ deriving instance (Ord (v a), Ord (w a))   => Ord (NN w v n o a)
 instance (NFData (v a), NFData (w a)) => NFData (NN w v n o a) where
   rnf (NN xs fin) = rnf xs `seq` rnf fin
 
-instance ( ConstrainedFunctor v
-         , ConstrainedFunctor w
-         , ElemConstraints v ~ ElemConstraints w
-         )
-         => ConstrainedFunctor (NN w v n o) where
+instance
+  ( ConstrainedFunctor v
+  , ConstrainedFunctor w
+  , ElemConstraints v ~ ElemConstraints w
+  )
+  => ConstrainedFunctor (NN w v n o) where
   type ElemConstraints (NN w v n o) = ElemConstraints w
   {-# INLINABLE cfmap #-}
   cfmap f (NN layers (finBias, finWeights)) =
@@ -102,22 +103,23 @@ instance (Matrix w v, Zippable w, Vect v) => Zippable (NN w v n o) where
   zipWith3 = nnZipWith3
   zipWith4 = nnZipWith4
 
-instance ( Convert w w'
-         , Convert v v'
-         , ElemConstraints v ~ ElemConstraints w
-         , ElemConstraints v' ~ ElemConstraints w'
-         )
-         => Convert (NN w v n o) (NN w' v' n o) where
+instance
+  ( ConstrainedIsomorphism w w'
+  , ConstrainedIsomorphism v v'
+  , ElemConstraints v ~ ElemConstraints w
+  , ElemConstraints v' ~ ElemConstraints w'
+  )
+  => ConstrainedIsomorphism (NN w v n o) (NN w' v' n o) where
   {-# INLINABLE convertTo   #-}
   {-# INLINABLE convertFrom #-}
   convertTo   (NN hiddenLayers finalLayer) =
     NN (V.map conv hiddenLayers) (conv finalLayer)
     where
-      conv = Conv.convertTo *** Conv.convertTo
+      conv = Iso.convertTo *** Iso.convertTo
   convertFrom (NN hiddenLayers finalLayer) = id
     NN (V.map conv hiddenLayers) (conv finalLayer)
     where
-      conv = Conv.convertFrom *** Conv.convertFrom
+      conv = Iso.convertFrom *** Iso.convertFrom
 
 toWeightList
   :: forall w v n o a. (Matrix w v, Vect v)

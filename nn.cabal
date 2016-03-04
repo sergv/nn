@@ -17,8 +17,8 @@ library
                        Data.Aligned.Float
                        Data.Aligned.Float.Foreign
                        Data.AlignedStorableVector
-                       Data.ConstrainedConvert
                        Data.ConstrainedFunctor
+                       Data.ConstrainedIsomorphism
                        Data.Eps
                        Data.Grad
                        Data.Nonlinearity

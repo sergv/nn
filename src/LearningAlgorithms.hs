@@ -21,8 +21,8 @@ module LearningAlgorithms where
 
 import Data.Vector (Vector)
 
-import Data.ConstrainedConvert (Convert)
-import qualified Data.ConstrainedConvert as Conv
+import Data.ConstrainedIsomorphism (ConstrainedIsomorphism)
+import qualified Data.ConstrainedIsomorphism as Iso
 import Data.ConstrainedFunctor
 import Data.Grad
 import Data.V3
@@ -100,7 +100,7 @@ rprop
   :: forall nn nn' v a.
      -- (ConstrainedFunctor k nn, Zippable k nn,
      --  NNVectorLike k nn Double, NeuralNetwork k nn v Double)
-     (NNVectorLike nn a, NeuralNetwork nn v a, Convert nn nn')
+     (NNVectorLike nn a, NeuralNetwork nn v a, ConstrainedIsomorphism nn nn')
   => (ElemConstraints nn a)
   => (ConstrainedFunctor nn', Zippable nn')
   => (ElemConstraints nn' a, ElemConstraints nn' (V3 a))
@@ -115,8 +115,8 @@ rprop (DeltaInfo {delta0, deltaMin, deltaMax, deltaIncrease, deltaDecrease}) nn 
     (value0, gradient0) = NN.targetFunctionGrad dataset nn
     gradient0Size       = NN.size $ getGrad gradient0
 
-    initialDeltas = Conv.mapConverting (const delta0) nn
-    initialGrad   = Grad $ Conv.mapConverting (const (0 :: a)) nn
+    initialDeltas = Iso.mapConverting (const delta0) nn
+    initialGrad   = Grad $ Iso.mapConverting (const (0 :: a)) nn
     f :: RPropState nn a
       -> nn a
       -> ( a
@@ -131,13 +131,13 @@ rprop (DeltaInfo {delta0, deltaMin, deltaMax, deltaIncrease, deltaDecrease}) nn 
         upd :: nn' (V3 a)
         upd               = zipWith4
                               g
-                              (Conv.convertTo $ getGrad prevGradient)
-                              (Conv.convertTo $ getGrad gradient)
-                              (Conv.convertTo nn)
-                              (Conv.convertTo deltas)
-        nn'               = Conv.convertFrom $ cfmap (\(V3 x _ _) -> x) upd
-        deltas'           = Conv.convertFrom $ cfmap (\(V3 _ y _) -> y) upd
-        prevGradient'     = Conv.convertFrom $ cfmap (\(V3 _ _ z) -> z) upd
+                              (Iso.convertTo $ getGrad prevGradient)
+                              (Iso.convertTo $ getGrad gradient)
+                              (Iso.convertTo nn)
+                              (Iso.convertTo deltas)
+        nn'               = Iso.convertFrom $ cfmap (\(V3 x _ _) -> x) upd
+        deltas'           = Iso.convertFrom $ cfmap (\(V3 _ y _) -> y) upd
+        prevGradient'     = Iso.convertFrom $ cfmap (\(V3 _ _ z) -> z) upd
 
         g :: a -> a -> a -> a -> V3 a
         g dwPrev dw w delta

@@ -44,8 +44,7 @@ import Numeric.AD hiding (gradientDescent, Grad)
 
 import Data.Random.Source.PureMT ()
 
-import Data.ConstrainedConvert (Convert)
-import qualified Data.ConstrainedConvert as Conv
+import Data.ConstrainedIsomorphism (ConstrainedIsomorphism(..))
 import Data.ConstrainedFunctor
 import Data.Grad
 import Data.Nonlinearity
@@ -97,7 +96,7 @@ instance Zippable (NN n o) where
   zipWith3 = nnZipWith3
   zipWith4 = nnZipWith4
 
-instance Convert (NN n o) (NN n o) where
+instance ConstrainedIsomorphism (NN n o) (NN n o) where
   {-# INLINABLE convertTo   #-}
   {-# INLINABLE convertFrom #-}
   convertTo   = id

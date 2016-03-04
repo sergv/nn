@@ -41,8 +41,7 @@ import qualified Text.PrettyPrint.Leijen.Text as PP
 import qualified Data.Aligned as Aligned
 import Data.AlignedStorableVector (AlignedStorableVector(..))
 import qualified Data.AlignedStorableVector as ASV
-import Data.ConstrainedConvert (Convert)
-import qualified Data.ConstrainedConvert as Conv
+import Data.ConstrainedIsomorphism (ConstrainedIsomorphism(..))
 import Data.ConstrainedFunctor
 import Data.Grad
 import Data.MatrixClass
@@ -97,7 +96,7 @@ instance Zippable OpenBlasMatrix where
       OpenBlasMatrix xRows xCols $ zipWith4 f xs ys zs ws
     | otherwise = error "OpenBlasMatrix.zipWith4: cannot zip matrices of different shapes"
 
-instance Convert OpenBlasMatrix StorableMatrixWithTranspose where
+instance ConstrainedIsomorphism OpenBlasMatrix StorableMatrixWithTranspose where
   {-# INLINABLE convertTo   #-}
   {-# INLINABLE convertFrom #-}
   convertTo (OpenBlasMatrix wRows wCols ws) =

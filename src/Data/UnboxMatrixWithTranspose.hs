@@ -33,8 +33,7 @@ import qualified Data.Vector.Unboxed as U
 import Text.PrettyPrint.Leijen.Text (Pretty(..), Doc)
 import qualified Text.PrettyPrint.Leijen.Text as PP
 
-import Data.ConstrainedConvert (Convert)
-import qualified Data.ConstrainedConvert as Conv
+import Data.ConstrainedIsomorphism (ConstrainedIsomorphism(..))
 import Data.ConstrainedFunctor
 import Data.MatrixClass
 import qualified Data.VectClass as VC
@@ -103,7 +102,7 @@ instance Zippable UnboxMatrixWithTranspose where
       mkMatrixWithTranspose xRows xCols $ zipWith4 f xs ys zs ws
     | otherwise = error "UnboxMatrixWithTranspose.zipWith4: cannot zip matrices of different shapes"
 
-instance Convert UnboxMatrixWithTranspose UnboxMatrixWithTranspose where
+instance ConstrainedIsomorphism UnboxMatrixWithTranspose UnboxMatrixWithTranspose where
   {-# INLINABLE convertTo   #-}
   {-# INLINABLE convertFrom #-}
   convertTo   = id

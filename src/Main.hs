@@ -47,7 +47,7 @@ import Graphics.Rendering.Chart.Backend.Cairo
 
 import Data.Aligned.Double
 import Data.AlignedStorableVector (AlignedStorableVector(..))
-import Data.ConstrainedConvert (Convert)
+import Data.ConstrainedIsomorphism (ConstrainedIsomorphism)
 import Data.ConstrainedFunctor
 import Data.Nonlinearity
 import Data.OpenBlasMatrix (OpenBlasMatrix)
@@ -130,7 +130,7 @@ main = do
     searchForFittingNN
       :: forall nn v a nn'. (NNVectorLike nn a, NeuralNetwork nn v a, Pretty (nn a), ElemConstraints nn a)
       => (ElemConstraints v a, Vect v, Show a, Num a, Floating a, PlotValue a)
-      => (Convert nn nn', ConstrainedFunctor nn', Zippable nn')
+      => (ConstrainedIsomorphism nn nn', ConstrainedFunctor nn', Zippable nn')
       => (ElemConstraints nn' a, ElemConstraints nn' (V3 a))
       => PureMT
       -> State PureMT (nn a)
