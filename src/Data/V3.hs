@@ -26,12 +26,8 @@ import qualified Data.Vector.Unboxed as U
 import Foreign.Ptr (castPtr, plusPtr)
 import Foreign.Storable
 
-data V3 a =
-  V3
-    {- # UNPACK #-} !a
-    {- # UNPACK #-} !a
-    {- # UNPACK #-} !a
-  deriving (Show, Eq, Ord)
+data V3 a = V3 !a !a !a
+ deriving (Show, Eq, Ord)
 
 newtype instance U.MVector s (V3 a) =
   MV_StrictDoubleTriple (U.MVector s (a, a, a))

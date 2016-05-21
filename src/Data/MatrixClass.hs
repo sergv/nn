@@ -21,7 +21,7 @@ module Data.MatrixClass where
 import Data.VectClass (Vect)
 import qualified Data.VectClass as VC
 import Data.ConstrainedFunctor
-import Prelude (Int, String, Monad, Floating, Show(..), Num, (.), ($), (++))
+import Prelude (Int, String, Monad, Show(..), Num, (.), ($))
 import qualified Prelude as P
 
 import Util
@@ -72,4 +72,4 @@ class (Vect v, ElemConstraints v ~ ElemConstraints w) => Matrix w v | w -> v whe
   --     v = VC.replicate (columns matr) 1
 
 showMatrixSize :: (Matrix w v) => w a -> String
-showMatrixSize x = show (rows x) ++ "x" ++ show (columns x)
+showMatrixSize x = show (rows x) P.++ "x" P.++ show (columns x)
