@@ -1,0 +1,9 @@
+resolver: lts-5.17
+
+packages:
+- '.'
+- location:  '/home/sergey/projects/haskell/projects/thirdparty/vector/'
+  extra-dep: true
+
+extra-deps: []
+
