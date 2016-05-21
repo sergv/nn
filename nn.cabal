@@ -1,144 +1,220 @@
-name:                nn
-version:             0.1.0.0
-synopsis:            Neural networks
--- description:
-license:             BSD3
-license-file:        LICENSE
-author:              Sergey Vinokurov
-maintainer:          serg.foo@gmail.com
-category:            Mathematics
-build-type:          Simple
-cabal-version:       >=1.10
+name:
+  nn
+version:
+  0.1.0.0
+synopsis:
+  Implementation of neural networks
+license:
+  BSD3
+license-file:
+  LICENSE
+author:
+  Sergey Vinokurov
+maintainer:
+  serg.foo@gmail.com
+category:
+  Mathematics
+build-type:
+  Simple
+cabal-version:
+  >=1.10
 
 library
-  exposed-modules:     Data.Aligned
-                       Data.Aligned.Double
-                       Data.Aligned.Double.Foreign
-                       Data.Aligned.Float
-                       Data.Aligned.Float.Foreign
-                       Data.AlignedStorableVector
-                       Data.ConstrainedFunctor
-                       Data.ConstrainedIsomorphism
-                       Data.Eps
-                       Data.Grad
-                       Data.Nonlinearity
-                       Data.Nonlinearity.Exp
-                       Data.Nonlinearity.HyperbolicTangent
-                       Data.Nonlinearity.Proxies
-                       Data.Nonlinearity.Linear
-                       Data.Nonlinearity.Sigmoid
-                       Data.OpenBlasEnums
-                       Data.OpenBlasMatrix
-                       Data.PureMatrix
-                       Data.SpecialisedFunction
-                       Data.StorableMatrixWithTranspose
-                       Data.V3
-                       Data.VectClass
-                       Data.UnboxMatrix
-                       Data.UnboxMatrixWithTranspose
-                       Data.Zippable
-                       Data.MatrixClass
-                       LearningAlgorithms
-                       NN
-                       NN.Generic
-                       NN.Specific
-                       Util
-  build-depends:       base >=4.6, text, mtl, vector, random,
-                       reflection, ad, random-source, random-fu, free, deepseq,
-                       wl-pprint-text, Chart
-  default-language:    Haskell2010
-  hs-source-dirs:      src
-  ghc-options:         -W -Wall
-                       -fwarn-monomorphism-restriction
-                       -fno-warn-name-shadowing
-                       -fno-warn-type-defaults
-                       -ferror-spans
-                       -rtsopts
-                       -- -fllvm -O2 -optlc=-O3 -optlo=-O3
-                       -- -funfolding-creation-threshold=1000  -funfolding-use-threshold=1000
-                       --
-                       -- -optlo=-mcpu=core-avx2
-                       -- -optlo=-mattr=+64bit-mode,+sse2,+sse3,+sse4.1,+sse4.2
-                       -- -optlc=-mcpu=core-avx2
-                       -- -optlc=-mattr=+64bit-mode,+sse2,+sse3,+sse4.1,+sse4.2
-  ghc-prof-options:    -fprof-auto
-  build-tools:         c2hs
-  includes:            cblas.h
-  extra-libraries:     openblas
-  include-dirs:        cbits
-  install-includes:    arithmetic.h
-                       arithmetic_types.h
-                       simd_expf.h
-                       simd_exp.h
-  c-sources:           cbits/arithmetic.c
-                       cbits/simd_expf.c
-                       cbits/simd_exp.c
-  cc-options:          -march=native -O3 -g0
+  exposed-modules:
+    Data.Aligned
+    Data.Aligned.Double
+    Data.Aligned.Double.Foreign
+    Data.Aligned.Float
+    Data.Aligned.Float.Foreign
+    Data.AlignedStorableVector
+    Data.ConstrainedFunctor
+    Data.ConstrainedIsomorphism
+    Data.Eps
+    Data.Grad
+    Data.Nonlinearity
+    Data.Nonlinearity.Exp
+    Data.Nonlinearity.HyperbolicTangent
+    Data.Nonlinearity.Proxies
+    Data.Nonlinearity.Linear
+    Data.Nonlinearity.Sigmoid
+    Data.OpenBlasEnums
+    Data.OpenBlasMatrix
+    Data.PureMatrix
+    Data.SpecialisedFunction
+    Data.StorableMatrixWithTranspose
+    Data.V3
+    Data.VectClass
+    Data.UnboxMatrix
+    Data.UnboxMatrixWithTranspose
+    Data.Zippable
+    Data.MatrixClass
+    LearningAlgorithms
+    NN
+    NN.Generic
+    NN.Specific
+    Util
+  build-depends:
+    ad,
+    base >=4.6,
+    Chart,
+    deepseq,
+    free,
+    mtl,
+    random,
+    random-fu,
+    random-source,
+    reflection,
+    text,
+    vector >= 0.11,
+    wl-pprint-text
+  default-language:
+    Haskell2010
+  hs-source-dirs:
+    src
+  ghc-options:
+    -Wall
+    -fwarn-monomorphism-restriction
+    -fno-warn-name-shadowing
+    -fno-warn-type-defaults
+    -ferror-spans
+    -rtsopts
+    -- -fllvm -O2 -optlc=-O3 -optlo=-O3
+    -- -funfolding-creation-threshold=1000  -funfolding-use-threshold=1000
+    --
+    -- -optlo=-mcpu=core-avx2
+    -- -optlo=-mattr=+64bit-mode,+sse2,+sse3,+sse4.1,+sse4.2
+    -- -optlc=-mcpu=core-avx2
+    -- -optlc=-mattr=+64bit-mode,+sse2,+sse3,+sse4.1,+sse4.2
+  ghc-prof-options:
+    -fprof-auto
+  build-tools:
+    c2hs
+  includes:
+    cblas.h
+  extra-libraries:
+    openblas
+  include-dirs:
+    cbits
+  install-includes:
+    arithmetic.h
+    arithmetic_types.h
+    simd_expf.h
+    simd_exp.h
+  c-sources:
+    cbits/arithmetic.c
+    cbits/simd_expf.c
+    cbits/simd_exp.c
+  cc-options:
+    -march=native -O3 -g0
 
 executable nn
-  main-is:             src/Main.hs
-  -- other-modules:
-  -- other-extensions:
-                       --random-source, deepseq, wl-pprint-text,
-  build-depends:       nn, base >=4.6, text, vector, mtl, directory,
-                       random, random-source, random-fu,
-                       Chart, Chart-cairo, colour, lens, data-default-class,
-                       wl-pprint-text
-  default-language:    Haskell2010
-  ghc-options:         -W -Wall
-                       -fwarn-monomorphism-restriction
-                       -fno-warn-name-shadowing
-                       -ferror-spans
-                       -rtsopts
-                       -- -fllvm -O2 -optlc=-O3 -optlo=-O3
-                       -- -funfolding-creation-threshold=1000  -funfolding-use-threshold=1000
-                       -- -optlo=-mcpu=core-avx2
-                       -- -optlo=-mattr=+64bit-mode,+sse2,+sse3,+sse4.1,+sse4.2
-                       -- -optlc=-mcpu=core-avx2
-                       -- -optlc=-mattr=+64bit-mode,+sse2,+sse3,+sse4.1,+sse4.2
-  ghc-prof-options:    -fprof-auto
+  main-is:
+    src/Main.hs
+  build-depends:
+    Chart,
+    Chart-cairo,
+    base >=4.6,
+    colour,
+    data-default-class,
+    directory,
+    lens,
+    mtl,
+    nn,
+    random,
+    random-fu,
+    random-source,
+    text,
+    vector,
+    wl-pprint-text
+  default-language:
+    Haskell2010
+  ghc-options:
+    -Wall
+    -fwarn-monomorphism-restriction
+    -fno-warn-name-shadowing
+    -ferror-spans
+    -rtsopts
+    -- -fllvm -O2 -optlc=-O3 -optlo=-O3
+    -- -funfolding-creation-threshold=1000  -funfolding-use-threshold=1000
+    -- -optlo=-mcpu=core-avx2
+    -- -optlo=-mattr=+64bit-mode,+sse2,+sse3,+sse4.1,+sse4.2
+    -- -optlc=-mcpu=core-avx2
+    -- -optlc=-mattr=+64bit-mode,+sse2,+sse3,+sse4.1,+sse4.2
+  ghc-prof-options:
+    -fprof-auto
 
 test-suite test-nn
-  type:                exitcode-stdio-1.0
-  main-is:             Main.hs
-  other-modules:       MatrixTests
-                       OtherTests
-                       TestUtils
-                       VectorTests
-  hs-source-dirs:      tests
-  default-language:    Haskell2010
-  build-depends:       base >= 3 && < 5, vector, mtl, text, wl-pprint-text,
-                       random, random-source, random-fu,
-                       tasty, tasty-hunit,
-                       nn
-  ghc-options:         -W -Wall
-                       -fwarn-monomorphism-restriction
-                       -fno-warn-name-shadowing
-                       -fno-warn-type-defaults
-                       -ferror-spans
-                       -rtsopts
-                       -O0
-  ghc-prof-options:    -fprof-auto
+  type:
+    exitcode-stdio-1.0
+  main-is:
+    Main.hs
+  other-modules:
+    MatrixTests
+    OtherTests
+    TestUtils
+    VectorTests
+  hs-source-dirs:
+    tests
+  default-language:
+    Haskell2010
+  build-depends:
+    base,
+    mtl,
+    nn,
+    random,
+    random-fu,
+    random-source,
+    tasty,
+    tasty-hunit,
+    text,
+    vector,
+    wl-pprint-text
+  ghc-options:
+    -Wall
+    -fwarn-monomorphism-restriction
+    -fno-warn-name-shadowing
+    -fno-warn-type-defaults
+    -ferror-spans
+    -rtsopts
+  ghc-prof-options:
+    -fprof-auto
 
 benchmark benchmark-nn
-  type:                exitcode-stdio-1.0
-  main-is:             src/BenchmarkMain.hs
-  build-depends:       nn, base >=4.6, text, vector, mtl, directory,
-                       random, random-source, random-fu,
-                       Chart, Chart-cairo, colour, lens, data-default-class,
-                       criterion
-  default-language:    Haskell2010
-  ghc-options:         -W -Wall
-                       -main-is BenchmarkMain
-                       -fwarn-monomorphism-restriction
-                       -fno-warn-name-shadowing
-                       -ferror-spans
-                       -rtsopts
-                       -- -fllvm -O2 -optlc=-O3 -optlo=-O3
-                       -- -funfolding-creation-threshold=1000  -funfolding-use-threshold=1000
-                       -- -optlo=-mcpu=core-avx2
-                       -- -optlo=-mattr=+64bit-mode,+sse2,+sse3,+sse4.1,+sse4.2
-                       -- -optlc=-mcpu=core-avx2
-                       -- -optlc=-mattr=+64bit-mode,+sse2,+sse3,+sse4.1,+sse4.2
-  ghc-prof-options:    -fprof-auto
+  type:
+    exitcode-stdio-1.0
+  main-is:
+    src/BenchmarkMain.hs
+  build-depends:
+    Chart,
+    Chart-cairo,
+    base >=4.6,
+    colour,
+    criterion,
+    data-default-class,
+    directory,
+    lens,
+    mtl,
+    nn,
+    random,
+    random-fu,
+    random-source,
+    text,
+    vector
+  default-language:
+    Haskell2010
+  ghc-options:
+    -Wall
+    -main-is BenchmarkMain
+    -fwarn-monomorphism-restriction
+    -fno-warn-name-shadowing
+    -ferror-spans
+    -rtsopts
+    -- -fllvm -O2 -optlc=-O3 -optlo=-O3
+    -- -funfolding-creation-threshold=1000  -funfolding-use-threshold=1000
+    -- -optlo=-mcpu=core-avx2
+    -- -optlo=-mattr=+64bit-mode,+sse2,+sse3,+sse4.1,+sse4.2
+    -- -optlc=-mcpu=core-avx2
+    -- -optlc=-mattr=+64bit-mode,+sse2,+sse3,+sse4.1,+sse4.2
+  ghc-prof-options:
+    -fprof-auto
 
