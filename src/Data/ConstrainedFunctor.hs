@@ -15,7 +15,10 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeFamilies      #-}
 
-module Data.ConstrainedFunctor where
+module Data.ConstrainedFunctor
+  ( ConstrainedFunctor(..)
+  , IdConstraint
+  ) where
 
 import qualified Data.Vector as V
 import Foreign (Storable)

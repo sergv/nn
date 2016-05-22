@@ -21,8 +21,6 @@ import Data.Proxy
 import Test.Tasty
 import Test.Tasty.HUnit
 
-import Data.Aligned.Double
-import Data.Aligned.Float
 import Data.ConstrainedFunctor
 import Data.MatrixClass (Matrix)
 import qualified Data.MatrixClass as MC
@@ -33,7 +31,6 @@ import Data.SpecialisedFunction
 import Data.UnboxMatrix (UnboxMatrix)
 import Data.UnboxMatrixWithTranspose (UnboxMatrixWithTranspose)
 import Data.VectClass (Vect)
-import qualified Data.VectClass as VC
 
 import TestUtils
 
@@ -148,9 +145,9 @@ matrixMultiplicationTests
 matrixMultiplicationTests name x y z = testGroup name
   [ testCase "Vanilla by vanilla" $
     MC.matrixMult x y @?= z
-  , testCase "Vanilla by transposed" $
-    MC.matrixMultByTransposedLeft (MC.transpose x) y @?= z
   , testCase "Transposed by vanilla" $
+    MC.matrixMultByTransposedLeft (MC.transpose x) y @?= z
+  , testCase "Vanilla by transposed" $
     MC.matrixMultByTransposedRight x (MC.transpose y) @?= z
   ]
 

@@ -48,8 +48,9 @@ class (Vect v, ElemConstraints v ~ ElemConstraints w) => Matrix w v | w -> v whe
   matrixMult :: (ElemConstraints w a, Num a) => w a -> w a -> w a
   (|+|) :: (ElemConstraints w a, Num a) => w a -> w a -> w a
   addScaled  :: (ElemConstraints w a, Num a) => w a -> a -> w a -> w a
-  default addScaled :: (ElemConstraints w a, Num a, ConstrainedFunctor w)
-                    => w a -> a -> w a -> w a
+  default addScaled
+    :: (ElemConstraints w a, Num a, ConstrainedFunctor w)
+    => w a -> a -> w a -> w a
   addScaled xs c ys = xs |+| cfmap (*! c) ys
   sumColumns :: (ElemConstraints w a, Num a) => w a -> v a
   sum :: (ElemConstraints w a, Num a) => w a -> a

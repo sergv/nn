@@ -14,7 +14,7 @@
 {-# LANGUAGE EmptyDataDecls #-}
 {-# LANGUAGE TypeFamilies   #-}
 
-module Data.Aligned where
+module Data.Aligned (Aligned(..)) where
 
 import Foreign (Storable)
 import Foreign.C.Types (CUInt(..))

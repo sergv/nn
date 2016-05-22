@@ -37,6 +37,7 @@ import Data.Nonlinearity.Linear
 import Data.Nonlinearity.Proxies
 import Data.Nonlinearity.Sigmoid
 
+-- | Nonlinearity function lifted to vectors.
 class (ConstrainedFunctor v) => VectorisedNonlinearity n v where
   nonlinearity :: (IsProxyFor p n, ElemConstraints v a, Floating a) => p -> v a -> v a
   {-# INLINABLE nonlinearity #-}
