@@ -17,9 +17,26 @@
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Util where
+module Util
+  ( linspace
+  , prettyShow
+  , display
+  , display'
+  , (+!)
+  , (-!)
+  , (*!)
+  , (/!)
+  , splitVec
+  , drop1
+  , interleave
+  , takeBy
+  ) where
 
-import Control.Monad
+import Data.Foldable
+import Data.List.NonEmpty (NonEmpty(..))
+import Data.Monoid
+import Data.Sequence (Seq, ViewL(..))
+import qualified Data.Sequence as Seq
 import Data.Text.Lazy (Text)
 import qualified Data.Text.Lazy as T
 import Data.Vector (Vector)
@@ -80,23 +97,6 @@ infixl 7 /!
 instance (Pretty a) => Pretty (Vector a) where
   pretty = pretty . V.toList
 
--- | Monadically build weight list for  'fromWeightList' function.
-makeWeightList :: forall m a. (Monad m) => Int -> [Int] -> Int -> m a -> m [[[a]]]
-makeWeightList inputLayerSize hiddenLayerSizes finalLayerSize mkElem = do
-  (lastHiddenSize, hiddenLayersRev) <- foldM mkHiddenLayer (inputLayerSize, []) hiddenLayerSizes
-  finalLayer                        <- mkLayer finalLayerSize lastHiddenSize
-  return $ reverse $ finalLayer : hiddenLayersRev
-  where
-    mkLayer :: Int -> Int -> m [[a]]
-    mkLayer size prevSize = replicateM size (replicateM prevSizeWithBias mkElem)
-      where
-        prevSizeWithBias = prevSize + 1
-
-    mkHiddenLayer :: (Int, [[[a]]]) -> Int -> m (Int, [[[a]]])
-    mkHiddenLayer (prevSize, layers) size = do
-      layer <- mkLayer size prevSize
-      return (size, layer : layers)
-
 -- | Split vector @vs@ into chunks of size @n@ and a leftover chunk, whose
 -- size is not multiple of @n@.
 splitVec :: Int -> Vector a -> ([Vector a], Vector a)
@@ -107,6 +107,24 @@ splitVec n vs =
     (lastSlice, lastSize) = V.length vs `divMod` n
     (i, lastSize') | lastSize == 0 = (1, n)
                    | otherwise     = (0, lastSize)
+
+-- | Remove single element from list in a multitude of ways.
+drop1 :: forall a. NonEmpty a -> [NonEmpty a]
+drop1 (_ :| []) = []
+drop1 (x :| xs@(y : ys)) =
+  (y :| ys) : map ((x :|) . toList) (go (Seq.fromList xs) mempty [])
+  where
+    go :: Seq a -> Seq a -> [Seq a] -> [Seq a]
+    go xs prefix yss =
+      case Seq.viewl xs of
+        EmptyL   -> reverse yss
+        x :< xs' ->
+          go xs' (prefix Seq.|> x) (prefix <> xs' : yss)
+
+interleave :: [a] -> [a] -> [a]
+interleave []     ys     = ys
+interleave xs     []     = xs
+interleave (x:xs) (y:ys) = x : y : interleave xs ys
 
 {-# INLINABLE takeBy #-}
 takeBy :: Int -> [a] -> [[a]]

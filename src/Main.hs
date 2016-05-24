@@ -88,7 +88,9 @@ nnHiddenLayersSize = [10, 10]
 mkOpenBlasMatrixNN
   :: (Applicative m, MonadRandom m)
   => m (NG.NN OpenBlasMatrix AlignedStorableVector HyperbolicTangent HyperbolicTangent AlignedDouble)
-mkOpenBlasMatrixNN = NG.makeNN 1 nnHiddenLayersSize 1 (AlignedDouble <$> sample stdNormal)
+mkOpenBlasMatrixNN =
+  either error id . fromDescription <$>
+  mkDescription 1 nnHiddenLayersSize 1 (AlignedDouble <$> sample stdNormal)
 
 main :: IO ()
 main = do

@@ -17,6 +17,7 @@
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE InstanceSigs          #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns        #-}
 {-# LANGUAGE OverloadedStrings     #-}
@@ -25,7 +26,7 @@
 {-# LANGUAGE TupleSections         #-}
 {-# LANGUAGE TypeFamilies          #-}
 
-{-# OPTIONS_GHC -fno-warn-orphans #-}
+-- {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module NN.Specific where
 
@@ -33,8 +34,12 @@ import Control.Arrow
 import Control.DeepSeq
 import Control.Monad.Except
 import Control.Monad.State
+import Data.Foldable
 import Data.Functor.Identity
+import Data.List.NonEmpty (NonEmpty(..))
+import qualified Data.List.NonEmpty as NE
 import Data.Monoid
+import Data.Traversable
 import Data.Vector (Vector)
 import qualified Data.Vector as V
 import Text.PrettyPrint.Leijen.Text (Pretty(..), Doc)
@@ -52,11 +57,13 @@ import Data.SpecialisedFunction
 import Data.Zippable
 import Util
 
+import NN.Description
+
 -- import Debug.Trace
 
 data NN n o a =
   NN
-    -- ^ Hidden layers, starting from the first on. Each layer is an m by n matrix,
+    -- ^ Hidden layers, starting from the input layer. Each layer is an m by n matrix,
     -- where m ranges over neurons in this layer and n depends on number of neurons
     -- in previous layer plus 1.
     (Vector (Vector (Vector a)))
@@ -65,20 +72,21 @@ data NN n o a =
   deriving (Show, Eq, Ord, Functor, Foldable, Traversable)
 
 instance forall n o a. (Show a, PrettyProxy n, PrettyProxy o) => Pretty (NN n o a) where
-  pretty nn@(NN hiddenLayers finalLayer) =
-    "Nonlinearity: " <> prettyProxy (NonlinearityProxy nn) <> PP.line <>
-    "Output: "       <> prettyProxy (OutputProxy nn)       <> PP.line <>
-    "HiddenLayers: " <> (PP.hcat $
-                         PP.punctuate (PP.line <> PP.line) $
-                         V.toList $
-                         V.map showLayer hiddenLayers) <> PP.line <>
-    "OutputLayer: "  <> showLayer finalLayer
+  pretty nn@(NN hiddenLayers outputLayer) = PP.vsep
+    [ "Nonlinearity: " <> prettyProxy (NonlinearityProxy nn)
+    , "Output: "       <> prettyProxy (OutputProxy nn)
+    , "HiddenLayers: " <> PP.hcat
+                          (PP.punctuate (PP.line <> PP.line) $
+                           toList $
+                           V.map showLayer hiddenLayers)
+    , "OutputLayer: "  <> showLayer outputLayer
+    ]
     where
       showLayer :: Vector (Vector a) -> Doc
       showLayer =
         PP.vsep .
-        map (PP.hcat . PP.punctuate PP.comma . map prettyShow . V.toList) .
-        V.toList
+        map (PP.hcat . PP.punctuate PP.comma . map prettyShow . toList) .
+        toList
 
 instance (NFData a) => NFData (NN n o a) where
   rnf (NN xs fin) = rnf xs `seq` rnf fin
@@ -101,10 +109,6 @@ instance ConstrainedIsomorphism (NN n o) (NN n o) where
   {-# INLINABLE convertFrom #-}
   convertTo   = id
   convertFrom = id
-
-toWeightList :: NN n o a -> [[[a]]]
-toWeightList (NN hiddenWeights finalWeights) =
-  V.toList $ V.map (V.toList . V.map V.toList) $ V.snoc hiddenWeights finalWeights
 
 nnZipWith :: (a -> b -> c) -> NN n o a -> NN n o b -> NN n o c
 nnZipWith f (NN xs finX) (NN ys finY) =
@@ -129,7 +133,7 @@ nnZipWith4 f (NN xs finX) (NN ys finY) (NN zs finZ) (NN ws finW) =
 
 add :: forall a n o. (Floating a) => NN n o a -> NN n o a -> NN n o a
 -- addScaled b (NN xs) (NN ys) = NN $ zipWith (\x y -> V.zipWith (\x' y' -> V.zipWith () x' y') x y) xs ys
-add nn addend = nnZipWith (+!) nn addend
+add = nnZipWith (+!)
 
 -- nnZ = b * nnX + NNy
 addScaled :: forall a n o. (Floating a) => NN n o a -> a -> NN n o a -> NN n o a
@@ -145,34 +149,68 @@ nnSize (NN layers fin) =
 differenceSize :: (Floating a) => NN n o a -> NN n o a -> a
 differenceSize xs ys = nnSize $ addScaled xs (-1) ys
 
-fromWeightList :: forall m n o a. (MonadError String m, Show a) => [[[a]]] -> m (NN n o a)
-fromWeightList []  = throwError "Cannot create neural network from empty list of weights"
-fromWeightList wss = NN <$> (V.fromList <$> mapM convertLayer wss')
-                        <*> convertLayer finalWs
-  where
-    wss'    = init wss
-    finalWs = last wss
-    convertLayer :: [[a]] -> m (Vector (Vector a))
-    convertLayer [] = throwError "Cannot convert empty layer to neural network"
-    convertLayer ws@(w:_)
-      | wLen > 0 && all (\w -> length w == wLen) ws =
-        return $ V.fromList $ map V.fromList ws
-      | otherwise =
-        throwError $ "Invalid layer, all rows must be of the same lenght: " ++ show ws
-      where
-        wLen = length w
+instance NNDescription NN where
+  toDescription
+    :: forall n o a m. (MonadError String m)
+    => NN n o a
+    -> m (Description n o a)
+  toDescription (NN hiddenWeights finalWeights) = do
+    inputSize <- case toList <$> toList hiddenWeights of
+                   []      -> return finalSize
+                   (x:_):_
+                     | inputSizeWithBias > 1 -> return $ inputSizeWithBias - 1
+                     | otherwise             ->
+                       throwError $ "Invalid NN: "
+                         ++ "input size with bias is not greater than 1: "
+                         ++ show inputSizeWithBias
+                     where
+                       inputSizeWithBias = V.length x
+                   []:_ -> throwError "Invalid NN: first layer is empty"
+    Description
+      <$> pure inputSize
+      <*> pure finalSize
+      <*> traverse convertLayer (toList hiddenWeights)
+      <*> convertLayer finalWeights
+    where
+      finalSize :: Int
+      finalSize = V.length finalWeights
+      convertLayer :: Vector (Vector a) -> m (NonEmpty a, NonEmpty (NonEmpty a))
+      convertLayer xss = do
+        (bs, ws) <- fmap unzip $ for (toList xss) $ \xs ->
+          case toList xs of
+            []         -> throwError "Invalid NN: empty row in bias + weight matrix"
+            [_]        -> throwError "Invalid NN: empty row in weight matrix"
+            bias:x:xs' -> return (bias, x :| xs')
+        case (bs, ws) of
+          ([], _)           -> throwError "Invalid NN: empty bias"
+          (_,  [])          -> throwError "Invalid NN: no rows in weights matrix"
+          (b : bs', w : ws) -> return (b :| bs', w :| ws)
 
--- layer size should be specified without accounting for bias
-makeNN
-  :: forall m n o a. (Monad m, Show a)
-  => Int
-  -> [Int]
-  -> Int
-  -> m a
-  -> m (NN n o a)
-makeNN inputLayerSize hiddenLayerSizes finalLayerSize mkElem =
-  either error return . fromWeightList =<<
-  makeWeightList inputLayerSize hiddenLayerSizes finalLayerSize mkElem
+  fromDescription
+    :: forall m n o a. (MonadError String m, Show a)
+    => Description n o a
+    -> m (NN n o a)
+  fromDescription Description {descriptionInputSize, descriptionOutputSize, descriptionHiddenLayers, descriptionFinalLayer} = do
+    when (descriptionInputSize == 0) $
+      throwError "Input size is 0"
+    when (descriptionOutputSize == 0) $
+      throwError "Final size is 0"
+    NN <$> (V.fromList <$> traverse convertLayer descriptionHiddenLayers)
+       <*> convertLayer descriptionFinalLayer
+    where
+      convertLayer :: (NonEmpty a, NonEmpty (NonEmpty a)) -> m (Vector (Vector a))
+      convertLayer (bias, ws'@(w :| ws))
+        | biasLen > 0 && biasLen == NE.length ws' && all (\w' -> NE.length w' == NE.length w) ws =
+          return
+            $ V.fromList
+            $ toList
+            $ V.fromList . toList <$> NE.zipWith NE.cons bias ws'
+        | otherwise =
+          throwError $ "Invalid layer, all rows must be of the same length: "
+            ++ show ws'
+            ++ ", including bias: " ++ show bias
+        where
+          biasLen = NE.length bias
 
 -- {-# SPECIALIZE forwardPropagate :: NN n o Double -> Vector Double -> Vector Double #-}
 forwardPropagate
@@ -181,10 +219,10 @@ forwardPropagate
   => NN n o a
   -> Vector a
   -> Vector a
-forwardPropagate nn@(NN hiddenLayers finalLayer) input =
+forwardPropagate nn@(NN hiddenLayers outputLayer) input =
   f (nonlinearity (OutputProxy nn))
     (V.foldl' (f (nonlinearity (NonlinearityProxy nn))) input hiddenLayers)
-    finalLayer
+    outputLayer
   where
     f :: (Vector a -> Vector a) -> Vector a -> Vector (Vector a) -> Vector a
     f activation prev layer =
@@ -211,7 +249,7 @@ targetFunctionGrad
 -- targetFunctionGrad dataset nn =
 --   second Grad $ grad' (targetFunction (V.map (V.map auto *** V.map auto) dataset)) nn
 targetFunctionGrad dataset =
-  \nn -> second Grad $ grad' (targetFunction' dataset) nn
+  second Grad . grad' (targetFunction' dataset)
   where
     targetFunction'
       :: (Floating b, Mode b)
@@ -246,23 +284,23 @@ backprop dataset = go
         computeSample x y
           | V.length prediction /= V.length y =
             error "Size mismatch between network prediction and expected output"
-          | V.length finalLayer /= V.length finalLayerWeights =
+          | V.length outputLayer /= V.length finalLayerWeights =
             error "Size mismatch between final layer sums and final layer neurons"
           | otherwise =
             -- trace (display' $ PP.vcat
             --         [ "Specific"
             --         , "hiddenLayersNeurons = " <> pretty hiddenLayersNeurons
             --         , "prefinalNeuronLayer = " <> pretty prefinalNeuronLayer
-            --         , "finalLayer          = " <> pretty finalLayer
+            --         , "outputLayer          = " <> pretty outputLayer
             --         ]) $
             (err, Grad $ NN hiddenLayersDerivs finalDerivs)
           where
             -- NB full neurons of hidden layers can be obtained by using
             -- V.snoc hiddenLayersNeurons prefinalNeuronLayer
             hiddenLayersNeurons :: Vector (Vector (a, a, Vector a))
-            (hiddenLayersNeurons, prefinalNeuronLayer, finalLayer) = forwardProp nn x
+            (hiddenLayersNeurons, prefinalNeuronLayer, outputLayer) = forwardProp nn x
             prediction :: Vector a
-            prediction = fmap (\(x, _deds, _ws) -> x) finalLayer
+            prediction = fmap (\(x, _deds, _ws) -> x) outputLayer
             mismatch :: Vector a
             mismatch = V.zipWith (-!) prediction y
             err :: a
@@ -271,13 +309,13 @@ backprop dataset = go
             finalDeltas = V.zipWith
                             (\m d -> 2 *! m *! d)
                             mismatch
-                            (V.map (\(_x, deds, _ws) -> deds) finalLayer)
+                            (V.map (\(_x, deds, _ws) -> deds) outputLayer)
             finalDerivs :: Vector (Vector a)
             finalDerivs = mkLayerDeriv finalDeltas prefinalNeuronLayer
 
             _prefinalLayerDelta :: Vector a
             prefinalDeltaWithLayer@(_prefinalLayerDelta, _) =
-              mkDelta prefinalNeuronLayer (finalDeltas, finalLayer)
+              mkDelta prefinalNeuronLayer (finalDeltas, outputLayer)
 
             -- Includes prefinalLayerDelta at the end. Does not need
             -- to include deltas for input layer since they won't be used
@@ -322,7 +360,7 @@ backprop dataset = go
       -> Vector a
       -> (Vector (Vector (a, a, Vector a)), Vector (a, a, Vector a), Vector (a, a, Vector a))
     forwardProp nn@(NN hiddenLayersWeights finalLayerWeights) input =
-      (neuronValues', prefinalNeuronLayer, finalLayer)
+      (neuronValues', prefinalNeuronLayer, outputLayer)
       where
         neuronValues :: Vector (Vector (a, a, Vector a))
         neuronValues =
@@ -337,11 +375,11 @@ backprop dataset = go
         prefinalNeuronLayer = V.unsafeLast neuronValues
         -- (neuronValues', prefinalNeuronLayer) = V.splitAt (V.length neuronValues - 1) neuronValues
 
-        finalLayer :: Vector (a, a, Vector a)
-        finalLayer = g prefinalNeuronLayer finalLayerWeights
+        outputLayer :: Vector (a, a, Vector a)
+        outputLayer = g prefinalNeuronLayer finalLayerWeights
 
         f :: Vector (a, a, Vector a) -> Vector (Vector a) -> Vector (a, a, Vector a)
-        f prevLayer layers = V.map useLayer layers
+        f prevLayer = fmap useLayer
           where
             useLayer :: Vector a -> (a, a, Vector a)
             useLayer ws = (x, deds, ws)
@@ -352,13 +390,12 @@ backprop dataset = go
                 Grad (Identity deds) = sfmap (addDerivInProxy nn') $ Identity s
 
         g :: Vector (a, a, Vector a) -> Vector (Vector a) -> Vector (a, a, Vector a)
-        g prevLayer layer =
-          V.map (\ws -> let s                    = V.head ws +! dot' prevLayer (V.tail ws)
-                            nn'                  = OutputProxy nn
-                            Identity x           = sfmap nn' $ Identity s
-                            Grad (Identity deds) = sfmap (addDerivInProxy nn') $ Identity s
-                        in (x, deds, ws))
-                layer
+        g prevLayer =
+          fmap (\ws -> let s                    = V.head ws +! dot' prevLayer (V.tail ws)
+                           nn'                  = OutputProxy nn
+                           Identity x           = sfmap nn' $ Identity s
+                           Grad (Identity deds) = sfmap (addDerivInProxy nn') $ Identity s
+                       in (x, deds, ws))
 
         dot' :: Vector (a, b, c) -> Vector a -> a
         dot' xs ys

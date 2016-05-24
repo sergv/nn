@@ -17,7 +17,7 @@
 
 module Data.Aligned.Double
   ( AlignedDouble(..)
-  , toAlignedDouble
+  , mkAlignedDouble
   , fromAlignedDouble
   )
 where
@@ -61,6 +61,6 @@ instance Storable AlignedDouble where
 fromAlignedDouble :: AlignedDouble -> Double
 fromAlignedDouble = getAlignedDouble
 
-{-# INLINABLE toAlignedDouble #-}
-toAlignedDouble :: Double -> AlignedDouble
-toAlignedDouble = AlignedDouble
+{-# INLINABLE mkAlignedDouble #-}
+mkAlignedDouble :: Double -> AlignedDouble
+mkAlignedDouble = AlignedDouble

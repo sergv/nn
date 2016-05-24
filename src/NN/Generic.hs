@@ -11,14 +11,14 @@
 --
 ----------------------------------------------------------------------------
 
-{-# LANGUAGE BangPatterns          #-}
 {-# LANGUAGE ConstraintKinds       #-}
 {-# LANGUAGE DeriveFoldable        #-}
 {-# LANGUAGE DeriveFunctor         #-}
 {-# LANGUAGE DeriveTraversable     #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE KindSignatures        #-}
+{-# LANGUAGE InstanceSigs          #-}
+{-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns        #-}
 {-# LANGUAGE OverloadedStrings     #-}
@@ -28,6 +28,7 @@
 {-# LANGUAGE TupleSections         #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE UndecidableInstances  #-}
+{-# LANGUAGE ViewPatterns          #-}
 
 module NN.Generic where
 
@@ -36,9 +37,12 @@ import Control.DeepSeq
 import Control.Monad.Except
 import Control.Monad.State
 import Data.Coerce
-import qualified Data.List as L
+import Data.Foldable
+import Data.List.NonEmpty (NonEmpty(..))
+import qualified Data.List.NonEmpty as NE
 import Data.Monoid
 import Data.Proxy
+import Data.Traversable
 import Data.Vector (Vector)
 import qualified Data.Vector as V
 import Prelude hiding (zipWith, zipWith3)
@@ -48,9 +52,9 @@ import qualified Text.PrettyPrint.Leijen.Text as PP
 import Data.Random.Source.PureMT ()
 import Numeric.AD hiding (grad, Grad)
 
+import Data.ConstrainedFunctor
 import Data.ConstrainedIsomorphism (ConstrainedIsomorphism)
 import qualified Data.ConstrainedIsomorphism as Iso
-import Data.ConstrainedFunctor
 import Data.Grad
 import Data.MatrixClass (Matrix, (|+|))
 import qualified Data.MatrixClass as MC
@@ -59,12 +63,13 @@ import Data.SpecialisedFunction
 import Data.VectClass (Vect, (.+.))
 import qualified Data.VectClass as VC
 import Data.Zippable
+import NN.Description
 import Util
 
-import Data.Aligned.Double (AlignedDouble)
-import Data.Aligned.Float (AlignedFloat)
-import Data.AlignedStorableVector (AlignedStorableVector)
-import Data.OpenBlasMatrix (OpenBlasMatrix)
+-- import Data.Aligned.Double (AlignedDouble)
+-- import Data.Aligned.Float (AlignedFloat)
+-- import Data.AlignedStorableVector (AlignedStorableVector)
+-- import Data.OpenBlasMatrix (OpenBlasMatrix)
 
 -- w - matrix
 -- v - vector
@@ -74,7 +79,7 @@ import Data.OpenBlasMatrix (OpenBlasMatrix)
 data NN w v n o a =
   NN {-# UNPACK #-} !(Vector (v a, w a)) -- ^ Hidden layers, each is a pair of bias vector and
                                          -- weights matrix.
-     {-# UNPACK #-} !(v a, w a)          -- ^ Final layer bias and weights.
+     {-# UNPACK #-} !(v a, w a)          -- ^ Output layer bias and weights.
      deriving (Functor, Foldable, Traversable)
 
 deriving instance (Show (v a), Show (w a)) => Show (NN w v n o a)
@@ -88,8 +93,7 @@ instance
   ( ConstrainedFunctor v
   , ConstrainedFunctor w
   , ElemConstraints v ~ ElemConstraints w
-  )
-  => ConstrainedFunctor (NN w v n o) where
+  ) => ConstrainedFunctor (NN w v n o) where
   type ElemConstraints (NN w v n o) = ElemConstraints w
   {-# INLINABLE cfmap #-}
   cfmap f (NN layers (finBias, finWeights)) =
@@ -108,29 +112,17 @@ instance
   , ConstrainedIsomorphism v v'
   , ElemConstraints v ~ ElemConstraints w
   , ElemConstraints v' ~ ElemConstraints w'
-  )
-  => ConstrainedIsomorphism (NN w v n o) (NN w' v' n o) where
+  ) => ConstrainedIsomorphism (NN w v n o) (NN w' v' n o) where
   {-# INLINABLE convertTo   #-}
   {-# INLINABLE convertFrom #-}
-  convertTo   (NN hiddenLayers finalLayer) =
-    NN (V.map conv hiddenLayers) (conv finalLayer)
+  convertTo   (NN hiddenLayers outputLayer) =
+    NN (V.map conv hiddenLayers) (conv outputLayer)
     where
       conv = Iso.convertTo *** Iso.convertTo
-  convertFrom (NN hiddenLayers finalLayer) = id
-    NN (V.map conv hiddenLayers) (conv finalLayer)
+  convertFrom (NN hiddenLayers outputLayer) =
+    NN (V.map conv hiddenLayers) (conv outputLayer)
     where
       conv = Iso.convertFrom *** Iso.convertFrom
-
-toWeightList
-  :: forall w v n o a. (Matrix w v, Vect v)
-  => (ElemConstraints v ~ ElemConstraints w, ElemConstraints v a)
-  => NN w v n o a
-  -> [[[a]]]
-toWeightList (NN hiddenLayers finalLayer) =
-  map convertLayer $ V.toList hiddenLayers ++ [finalLayer]
-  where
-    convertLayer :: (v a, w a) -> [[a]]
-    convertLayer (bias, weights) = L.zipWith (:) (VC.toList bias) (MC.toList weights)
 
 nnZipWith
   :: (Matrix w v, Zippable w, Vect v, ElemConstraints v ~ ElemConstraints w)
@@ -224,40 +216,72 @@ differenceSize
   => NN w v n o a -> NN w v n o a -> a
 differenceSize xs ys = nnSize $ addScaled xs (-1) ys
 
-fromWeightList
-  :: forall m w v n o a. (MonadError String m, Show a)
-  => (Matrix w v, Vect v)
-  => (ElemConstraints v ~ ElemConstraints w, ElemConstraints w a)
-  => [[[a]]]
-  -> m (NN w v n o a)
-fromWeightList []  = throwError "Cannot create neural network from empty list of weights"
-fromWeightList wss = NN <$> (V.fromList <$> mapM convertLayer wss')
-                        <*> convertLayer finalWs
-  where
-    wss'    = init wss
-    finalWs = last wss
-    convertLayer :: [[a]] -> m (v a, w a)
-    convertLayer [] = throwError "Cannot convert empty layer to neural network"
-    convertLayer ws@(w:_)
-      | wLen > 0 && all (\w -> length w == wLen) ws =
-        return $ (VC.fromList $ map head ws, MC.fromList $ map tail ws)
-      | otherwise =
-        throwError $ "Invalid layer, all rows must be of the same lenght: " ++ show ws
-      where
-        wLen = length w
+instance
+  ( Matrix w v
+  , ConstrainedFunctor w
+  -- , Zippable w
+  , ElemConstraints v ~ ElemConstraints w
+  ) => NNDescription (NN w v) where
+  toDescription
+    :: forall n o a m. (MonadError String m, ElemConstraints v a)
+    => NN w v n o a
+    -> m (Description n o a)
+  toDescription (NN hiddenWeights outputLayer@(finalBias, _)) = do
+    inputSize <- case toList hiddenWeights of
+                   []      -> return finalSize
+                   (_, w):_
+                     | inputSize > 0 -> return inputSize
+                     | otherwise             ->
+                       throwError "Invalid NN: first layer is empty"
+                     where
+                       inputSize = MC.columns w
+    Description
+      <$> pure inputSize
+      <*> pure finalSize
+      <*> traverse convertLayer (toList hiddenWeights)
+      <*> convertLayer outputLayer
+    where
+      finalSize :: Int
+      finalSize = VC.length finalBias
+      convertLayer :: (v a, w a) -> m (NonEmpty a, NonEmpty (NonEmpty a))
+      convertLayer (bias, w) = do
+        w' <- for (MC.toList w) $ \case
+                []   -> throwError "Invalid nn: weight matrix has empty row"
+                w:ws -> return $ w :| ws
+        case (bias', w') of
+          ([], _)             -> throwError "Invalid NN layer: empty bias"
+          (_,  [])            -> throwError "Invalid NN layer: empty list of weights"
+          (b:bias'', w : w'') -> do
+            unless (all ((== length w) . length) w'') $
+              throwError "Invalid NN layer: not all rows have the same number of columns"
+            return (b :| bias'', w :| w'')
+        where
+          bias' = VC.toList bias
 
-makeNN
-  :: forall m n o w v a. (Monad m, Show a)
-  => (Matrix w v, Vect v)
-  => (ElemConstraints v ~ ElemConstraints w, ElemConstraints w a)
-  => Int
-  -> [Int]
-  -> Int
-  -> m a
-  -> m (NN w v n o a)
-makeNN inputLayerSize hiddenLayerSizes finalLayerSize mkElem =
-  either error return . fromWeightList =<<
-  makeWeightList inputLayerSize hiddenLayerSizes finalLayerSize mkElem
+  fromDescription
+    :: forall m n o a. (MonadError String m, Show a)
+    => (Matrix w v, Vect v)
+    => (ElemConstraints v ~ ElemConstraints w, ElemConstraints w a)
+    => Description n o a
+    -> m (NN w v n o a)
+  fromDescription Description {descriptionInputSize, descriptionOutputSize, descriptionHiddenLayers, descriptionFinalLayer} = do
+    when (descriptionInputSize == 0) $
+      throwError "Input size is 0"
+    when (descriptionOutputSize == 0) $
+      throwError "Final size is 0"
+    NN <$> (V.fromList <$> traverse convertLayer descriptionHiddenLayers)
+       <*> convertLayer descriptionFinalLayer
+    where
+      convertLayer :: (NonEmpty a, NonEmpty (NonEmpty a)) -> m (v a, w a)
+      convertLayer (bias, ws'@(w :| ws))
+        | biasLen > 0 && biasLen == NE.length ws' && all (\w' -> NE.length w' == NE.length w) ws =
+          return (VC.fromList $ toList bias, MC.fromList $ map toList $ toList ws')
+        | otherwise =
+          throwError $ "Invalid layer, all rows must be of the same lenght: "
+            ++ show ws'
+            ++ ", including bias: " ++ show bias
+        where
+          biasLen = NE.length bias
 
 forwardPropagate
   :: forall w v a n o. (Matrix w v, Floating a)
@@ -267,10 +291,10 @@ forwardPropagate
   => NN w v n o a
   -> v a
   -> v a
-forwardPropagate nn@(NN hiddenLayers finalLayer) input =
+forwardPropagate nn@(NN hiddenLayers outputLayer) input =
   f (nonlinearity (OutputProxy nn))
     (V.foldl' (f (nonlinearity (NonlinearityProxy nn))) input hiddenLayers)
-    finalLayer
+    outputLayer
   where
     f :: (v a -> v a) -> v a -> (v a, w a) -> v a
     f activation prev (bias, layer) =
@@ -311,12 +335,21 @@ targetFunctionGrad dataset =
 splitDataset
   :: forall v w a. (Vect v, Matrix w v, Show a)
   => (ElemConstraints v ~ ElemConstraints w, ElemConstraints w a)
-  => Int -> Vector (v a, v a) -> (Vector (w a, w a), (w a, w a), Int)
+  => Int                 -- ^ Chunk size
+  -> Vector (v a, v a)   -- ^ Initial dataset
+  -> ( Vector (w a, w a) -- ^ Chunks
+     , Maybe (w a, w a)  -- ^ Last chunk
+     , Int               -- ^ Last chunk Size
+     )
 splitDataset n xs =
-  (fmap mkMatrix $ V.fromList fullChunks, mkMatrix lastChunk, lastSize)
+  (mkMatrix <$> V.fromList fullChunks, lastChunk', lastSize)
   where
     (fullChunks, lastChunk) = splitVec n xs
     lastSize = V.length lastChunk
+    lastChunk' :: Maybe (w a, w a)
+    lastChunk'
+      | lastSize == 0 = Nothing
+      | otherwise     = Just $ mkMatrix lastChunk
     mkMatrix :: Vector (v a, v a) -> (w a, w a)
     mkMatrix ws =
       -- Transpose resulting matrices since input vectors were column vectors,
@@ -342,31 +375,38 @@ backprop
   -> NN w v n o a
   -> (a, Grad (NN w v n o) a)
 backprop chunkSize dataset
-  | V.null dataset = \nn -> (0, Grad $ cfmap (const 0) nn)
+  | V.null dataset = zeroRes
   | otherwise      = go
   where
+    zeroRes nn = (0, Grad $ cfmap (const 0) nn)
     go :: NN w v n o a -> (a, Grad (NN w v n o) a)
-    go nn@(NN hiddenLayers finalLayer@(_, finalLayerWeights)) =
+    go nn@(NN hiddenLayers outputLayer@(_, finalLayerWeights)) =
       V.foldr'
         combineAdd
-        (uncurry computeLast lastChunk)
+        lastRes
         (fmap (uncurry computeFull) fullChunks)
       where
         (fullChunks, lastChunk, lastSize) = splitDataset chunkSize dataset
 
         computeFull :: w a -> w a -> (a, Grad (NN w v n o) a)
-        computeFull = computeBatch hiddenLayersFull finalLayerFull
-        hiddenLayersFull :: Vector (w a, w a)
-        hiddenLayersFull = V.map (first (broadcastBias chunkSize)) hiddenLayers
-        finalLayerFull :: (w a, w a)
-        finalLayerFull = first (broadcastBias chunkSize) finalLayer
+        computeFull = computeBatch hiddenLayersFull outputLayerFull
+          where
+            hiddenLayersFull :: Vector (w a, w a)
+            hiddenLayersFull = V.map (first (broadcastBias chunkSize)) hiddenLayers
+            outputLayerFull :: (w a, w a)
+            outputLayerFull = first (broadcastBias chunkSize) outputLayer
 
+        lastRes :: (a, Grad (NN w v n o) a)
+        lastRes = case lastChunk of
+                    Nothing     -> zeroRes nn
+                    Just (x, y) -> computeLast x y
         computeLast :: w a -> w a -> (a, Grad (NN w v n o) a)
-        computeLast = computeBatch hiddenLayersLast finalLayerLast
-        hiddenLayersLast :: Vector (w a, w a)
-        hiddenLayersLast = V.map (first (broadcastBias lastSize)) hiddenLayers
-        finalLayerLast :: (w a, w a)
-        finalLayerLast = first (broadcastBias lastSize) finalLayer
+        computeLast = computeBatch hiddenLayersLast outputLayerLast
+          where
+            hiddenLayersLast :: Vector (w a, w a)
+            hiddenLayersLast = V.map (first (broadcastBias lastSize)) hiddenLayers
+            outputLayerLast :: (w a, w a)
+            outputLayerLast = first (broadcastBias lastSize) outputLayer
 
         -- Lift bias vector into single-column bias matrix.
         broadcastBias :: Int -> v a -> w a
@@ -394,7 +434,7 @@ backprop chunkSize dataset
             --         , "hiddenLayersNeurons  = " <> pretty hiddenLayersNeurons
             --         , "hiddenLayerWeights   = " <> pretty _hiddenLayerWeights
             --         , "prefinalNeuronLayer  = " <> pretty prefinalNeuronLayer
-            --         , "finalLayer           = " <> pretty finalLayer
+            --         , "outputLayer          = " <> pretty outputLayer
             --         , "finalLayerDeriv      = " <> pretty finalLayerDeriv
             --         , "finalLayerWeights    = " <> PP.align (pretty finalLayerWeights)
             --         ]) $
@@ -475,7 +515,7 @@ backprop chunkSize dataset
       -> (w a, w a)
       -> w a
       -> (Vector (w a, Grad w a, w a), (w a, Grad w a, w a), w a, Grad w a)
-    forwardProp nn hiddenLayers finalLayer input =
+    forwardProp nn hiddenLayers outputLayer input =
       (neuronValues', prefinalNeuronLayer, finalLayerVals, finalLayerValsDeriv)
       where
         neuronValues :: Vector (w a, Grad w a, w a)
@@ -495,7 +535,7 @@ backprop chunkSize dataset
 
         finalLayerVals      :: w a
         finalLayerValsDeriv :: Grad w a
-        (finalLayerVals, finalLayerValsDeriv) = g prefinalNeuronLayer finalLayer
+        (finalLayerVals, finalLayerValsDeriv) = g prefinalNeuronLayer outputLayer
 
         f :: (w a, b, c) -> (w a, w a) -> (w a, Grad w a, w a)
         f (prevLayer, _prevLayerDeriv, _prevWeights) (bias, weights) =
@@ -551,24 +591,24 @@ targetFunctionGradNumerical epsilon dataset nn =
           | otherwise = y
 
 
-instance forall w v n o a.
-         ( Pretty (w a)
-         , Vect v
-         , ElemConstraints v a
-         , Show a
-         , PrettyProxy n
-         , PrettyProxy o
-         )
-         =>
-         Pretty (NN w v n o a) where
-  pretty nn@(NN hiddenLayers finalLayer) =
-    "Nonlinearity: " <> prettyProxy (NonlinearityProxy nn) <> PP.line <>
-    "Output: "       <> prettyProxy (OutputProxy nn)       <> PP.line <>
-    "HiddenLayers: " <> (PP.hcat $
-                         PP.punctuate (PP.line <> PP.line) $
-                         V.toList $
-                         V.map showLayer hiddenLayers) <> PP.line <>
-    "OutputLayer: "  <> showLayer finalLayer
+instance
+  forall w v n o a.
+  ( Pretty (w a)
+  , Vect v
+  , ElemConstraints v a
+  , Show a
+  , PrettyProxy n
+  , PrettyProxy o
+  ) => Pretty (NN w v n o a) where
+  pretty nn@(NN hiddenLayers outputLayer) = PP.vsep
+    [ "Nonlinearity: " <> prettyProxy (NonlinearityProxy nn)
+    , "Output: "       <> prettyProxy (OutputProxy nn)
+    , "HiddenLayers: " <> PP.hcat
+                          (PP.punctuate (PP.line <> PP.line) $
+                           V.toList $
+                           V.map showLayer hiddenLayers)
+    , "OutputLayer: "  <> showLayer outputLayer
+    ]
     where
       showLayer :: (v a, w a) -> Doc
       showLayer (bias, weights) =

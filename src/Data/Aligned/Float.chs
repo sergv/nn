@@ -17,7 +17,7 @@
 
 module Data.Aligned.Float
   ( AlignedFloat(..)
-  , toAlignedFloat
+  , mkAlignedFloat
   , fromAlignedFloat
   )
 where
@@ -61,6 +61,6 @@ instance Storable AlignedFloat where
 fromAlignedFloat :: AlignedFloat -> Float
 fromAlignedFloat = getAlignedFloat
 
-{-# INLINABLE toAlignedFloat #-}
-toAlignedFloat :: Float -> AlignedFloat
-toAlignedFloat = AlignedFloat
+{-# INLINABLE mkAlignedFloat #-}
+mkAlignedFloat :: Float -> AlignedFloat
+mkAlignedFloat = AlignedFloat
