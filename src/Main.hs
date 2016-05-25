@@ -178,7 +178,7 @@ plotResult n err nn dataset = do
                $ plot_lines_title .~ "original"
                $ def
 
-        predictedDataset = V.map (id *** head . VC.toList . forwardPropagate nn . VC.singleton) dataset
+        predictedDataset = V.map (second (head . VC.toList . forwardPropagate nn . VC.singleton)) dataset
         predicted = plot_lines_values .~ [V.toList predictedDataset]
                   $ plot_lines_style  . line_color .~ opaque blue
                   $ plot_lines_title .~ "predicted model"
