@@ -15,7 +15,7 @@
 
 module OtherTests (tests) where
 
-import Data.Vector ()
+import Data.Vector (Vector)
 import Test.Tasty
 import Test.Tasty.HUnit
 
@@ -42,4 +42,5 @@ vecTakeByTests = testGroup "splitVec"
     splitVec 6 xs @?= ([], [1, 2, 3, 4, 5])
   ]
   where
+    xs :: Vector Int
     xs = [1, 2, 3, 4, 5]

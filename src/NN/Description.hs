@@ -40,7 +40,7 @@ import qualified Data.DList as DL
 import Data.Foldable
 import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NE
-import Data.Sequence (Seq, ViewL(..), (|>))
+import Data.Sequence (Seq, ViewL(..), (<|), (|>))
 import qualified Data.Sequence as Seq
 import GHC.Generics
 import Test.QuickCheck
@@ -137,7 +137,7 @@ class NNDescription (nn :: * -> * -> * -> *) where
     :: (ElemConstraints (nn n o) a, MonadError String m)
     => nn n o a -> m (Description n o a)
 
-instance (Arbitrary a) => Arbitrary (Description n o a) where
+instance (Arbitrary a, Show a) => Arbitrary (Description n o a) where
   arbitrary = do
     Positive (inputSize :: Int) <- arbitrary
     Positive (outputSize :: Int) <- arbitrary
@@ -160,7 +160,7 @@ data ShrinkType =
 
 -- | Invariant: inputSize and outputSize can only decrease
 shrinkDescription
-  :: forall n o a. Description n o a -> [(ShrinkType, Description n o a)]
+  :: forall n o a. (Show a) => Description n o a -> [(ShrinkType, Description n o a)]
 shrinkDescription (Description inputSize outputSize hiddenLayers outputLayer) =
   map (first ShrinkInput)                  (shrinkInputLayer allLayers) `interleave`
   map (first ShrinkOutput)                 (shrinkOutputLayer outputLayer) `interleave`
@@ -238,25 +238,32 @@ drop1InHiddenLayer (bias, weights) _followingLayer@(followingBias, followingWeig
     followingWeights' = Seq.fromList . toList <$> followingWeights
 
 throwAwayLayers
-  :: NonEmpty (NonEmpty a, NonEmpty (NonEmpty a))
+  :: (Show a) => NonEmpty (NonEmpty a, NonEmpty (NonEmpty a))
   -> [NonEmpty (NonEmpty a, NonEmpty (NonEmpty a))]
 throwAwayLayers xs =
-  toList $ execWriter $ collect xs mempty
+  toList $ execWriter $ collect (Seq.fromList $ toList xs) mempty
   where
     collect
-      :: NonEmpty (b, NonEmpty (NonEmpty c))
+      :: (Show b, Show c) => Seq (b, NonEmpty (NonEmpty c))
       -> Seq (b, NonEmpty (NonEmpty c))
       -> Writer (DList (NonEmpty (b, NonEmpty (NonEmpty c)))) ()
-    collect xs prefix =
-      case xs of
-        _ :| []     ->
-          tell $ maybe mempty DL.singleton $ seqToNE prefix
-        x :| _ : [] ->
-          tell $ DL.singleton $ NE.fromList $ toList $ prefix |> x
-        x :| x' : xs'@(x'' : xs'') -> do
-          when (compatibleWeights (snd x) (snd x'')) $
-            tell $ DL.singleton $ x :| x'' : toList xs''
-          collect (x' :| xs') $ prefix |> x
+    collect items prefix =
+      case Seq.viewl items of
+        EmptyL  -> return ()
+        x :< xs ->
+          case Seq.viewl xs of
+            EmptyL    -> return ()
+            x' :< xs' ->
+              case Seq.viewl xs' of
+                EmptyL ->
+                  -- If last prefix element has the same dimensionality as
+                  -- current output layer, we can use it instead.
+                  when (NE.length (snd x) == NE.length (snd x')) $
+                    tell $ maybe mempty DL.singleton $ seqToNE $ prefix |> x
+                x'' :< _ -> do
+                  when (compatibleWeights (snd x) (snd x'')) $
+                    tell $ maybe mempty DL.singleton $ seqToNE $ prefix <> (x <| xs')
+                  collect (x' <| xs') $ prefix |> x
 
 -- Check whether weighs @us@ can follow weighs @ws@ in the neural network.
 -- I.e. check whether inputs produced by @ws@ can be handled by @us@.
