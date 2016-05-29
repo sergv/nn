@@ -48,8 +48,8 @@ import Data.UnboxMatrix (UnboxMatrix)
 import Data.UnboxMatrixWithTranspose (UnboxMatrixWithTranspose)
 import Data.VectClass (Vect)
 import qualified Data.VectClass as VC
+import NN (NNVectorLike, NeuralNetwork)
 import qualified NN
-import NN (NNVectorLike)
 import qualified NN.Generic as G
 import qualified NN.Specific as S
 import Util
@@ -75,8 +75,9 @@ epsilon = 1e-6
 tests :: TestTree
 tests = testGroup "Neural network tests"
   [ nnTests
-  , QC.testProperty "Generic OpenBlasMatrix match Specific values and gradients, random NNs and inputs"
-      (verbose nn_prop)
+  , localOption (QC.QuickCheckMaxSize 40) $
+    QC.testProperty "Generic OpenBlasMatrix match Specific values and gradients, random NNs and inputs"
+      nn_prop
   ]
 
 nnTests :: TestTree
@@ -158,20 +159,20 @@ compareAdVsNumericalGradients name genInput descr =
             "Specific"
             genInput
             (makeSpecificNN descr)
-            S.targetFunctionGrad
+            S.targetFunctionGradAD
             (S.targetFunctionGradNumerical epsilon)
         , testGroup "Generic"
             [ compareGradients
                 "Vector"
                 genInput
                 (makeGenericVectorNN descr)
-                G.targetFunctionGrad
+                G.targetFunctionGradAD
                 (G.targetFunctionGradNumerical epsilon)
             , compareGradients
                 "List"
                 genInput
                 (makeGenericListNN descr)
-                G.targetFunctionGrad
+                G.targetFunctionGradAD
                 (G.targetFunctionGradNumerical epsilon)
             ]
         ]
@@ -189,7 +190,7 @@ compareGradientsFromDifferentSources name genInput descr =
           "Specific"
           genInput
           (makeSpecificNN descr)
-          S.targetFunctionGrad
+          S.targetFunctionGradAD
           S.backprop
       , testGroup "Generic"
           [ compareGradients
@@ -197,21 +198,21 @@ compareGradientsFromDifferentSources name genInput descr =
               genInput
               (makeGenericVectorNN descr)
               -- (G.targetFunctionGradNumerical epsilon)
-              G.targetFunctionGrad
+              G.targetFunctionGradAD
               (G.backprop 1)
           , compareGradients
               ("PureMatrix: Vector, chunkSize = " ++ show chunkSize)
               genInput
               (makeGenericVectorNN descr)
               -- (G.targetFunctionGradNumerical epsilon)
-              G.targetFunctionGrad
+              G.targetFunctionGradAD
               (G.backprop chunkSize)
           , compareGradients
               "PureMatrix: List"
               genInput
               (makeGenericListNN descr)
               -- (G.targetFunctionGradNumerical epsilon)
-              G.targetFunctionGrad
+              G.targetFunctionGradAD
               (G.backprop chunkSize)
           ]
       ]
@@ -315,15 +316,15 @@ compareGrads
   => nn n o a                                                    -- ^ First network
   -> (Vector (v a, v a) -> nn n o a -> (a, Grad (nn n o) a))     -- ^ Function to compute target function along with gradient for first NN
   -> nn' n o b                                                   -- ^ Second network
-  -> (Vector (v' b, v' b) -> nn' n o b -> (b, Grad (nn' n o) b)) -- ^ Target function value and gradient calculator for second NN
+  -> (Vector (v' b, v' b) -> nn' n o b -> (b, Grad (nn' n o) b)) -- ^ Function to compute target function along with gradient for second NN
   -> Vector (NonEmpty Double, NonEmpty Double)                   -- ^ Dataset
   -> m ()
 compareGrads nn targetFuncGrad nn' targetFuncGrad' dataset = do
   unless (ApproxEq y == ApproxEq y') $
     throwError $ PP.vcat
       [ "target function values do not match:"
-      , "first value:  " <> pretty y
-      , "second value: " <> pretty y'
+      , "first result:  " <> pretty y
+      , "second result: " <> pretty y'
       ]
   unless (gradDescr == gradDescr') $
     throwError $ PP.vcat
@@ -345,6 +346,53 @@ compareGrads nn targetFuncGrad nn' targetFuncGrad' dataset = do
     gradDescr :: Description n o ApproxEq
     gradDescr  = fmap ApproxEq $ either error id $ NN.toDescription $ getGrad grad
     gradDescr' = fmap ApproxEq $ either error id $ NN.toDescription $ getGrad grad'
+
+compareForwardProp
+  :: forall nn nn' n o v v' a b m.
+     (NeuralNetwork (nn n o) v a, NeuralNetwork (nn' n o) v' b)
+  => (NNVectorLike (nn n o) a, NNVectorLike (nn' n o) b)
+  => (ElemConstraints (nn n o) a, ElemConstraints (nn' n o) b)
+  => (Vect v, Vect v')
+  => (ElemConstraints v a, ElemConstraints v' b)
+  => (Show a, Pretty a, ToDouble a, FromDouble a)
+  => (Show b, Pretty b, ToDouble b, FromDouble b)
+  => (MonadError Doc m)
+  => nn n o a                 -- ^ First network
+  -> nn' n o b                -- ^ Second network
+  -> Vector (NonEmpty Double) -- ^ Dataset - only inputs
+  -> m ()
+compareForwardProp nn nn' inputs = V.zipWithM_ cmp ys ys'
+  where
+    firstDataset :: Vector (v a)
+    firstDataset = VC.fromList . map fromDouble . toList <$> inputs
+    secondDataset :: Vector (v' b)
+    secondDataset = VC.fromList . map fromDouble . toList <$> inputs
+    ys :: Vector (v a)
+    ys  = NN.forwardPropagate nn <$> firstDataset
+    ys' :: Vector (v' b)
+    ys' = NN.forwardPropagate nn' <$> secondDataset
+    cmp :: v a -> v' b -> m ()
+    cmp xs ys = do
+      unless (VC.length xs == VC.length ys) $
+        throwError $ PP.vcat
+          [ "output dimensions mismatch:"
+          , "first result:  " <> pretty xs'
+          , "second result: " <> pretty ys'
+          ]
+      zipWithM_ (\(n, x) y ->
+          unless (ApproxEq x == ApproxEq y) $
+            throwError $ PP.vcat
+              [ pretty n <> "th component of the output do not match:"
+              , "first component:  " <> pretty x
+              , "second component: " <> pretty y
+              , "first result:     " <> pretty xs'
+              , "second result:    " <> pretty ys'
+              ])
+        (zip [0 :: Int ..] xs')
+        ys'
+      where
+        xs' = VC.toList xs
+        ys' = VC.toList ys
 
 mkDescription' :: Int -> [Int] -> Int -> Description n o Double
 mkDescription' inputSize hiddenLayerSizes outputSize =
@@ -439,10 +487,24 @@ nn_prop NNTest {nnTestDescr, nnDataset, nnChunkSize} =
   where
     result = compareGrads
                nn
-               S.targetFunctionGrad
+               NN.targetFunctionGrad
                nn'
                (G.backprop nnChunkSize)
                (V.fromList $ toList nnDataset)
+    nn :: S.NN HyperbolicTangent HyperbolicTangent Double
+    nn = makeSpecificNN nnTestDescr
+    nn' :: G.NN OpenBlasMatrix AlignedStorableVector HyperbolicTangent HyperbolicTangent AlignedDouble
+    nn' = makeOpenBlasMatrixNN nnTestDescr
+    -- nn' :: G.NN (PureMatrix Vector) Vector HyperbolicTangent HyperbolicTangent Double
+    -- nn' = makeGenericVectorNN nnTestDescr
+
+_nnForwardPropagationCheck :: (MonadError Doc m) => NNTest -> m ()
+_nnForwardPropagationCheck NNTest {nnTestDescr, nnDataset} =
+  compareForwardProp
+    nn
+    nn'
+    (V.fromList $ toList $ fst <$> nnDataset)
+  where
     nn :: S.NN HyperbolicTangent HyperbolicTangent Double
     nn = makeSpecificNN nnTestDescr
     nn' :: G.NN OpenBlasMatrix AlignedStorableVector HyperbolicTangent HyperbolicTangent AlignedDouble

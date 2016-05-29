@@ -240,15 +240,13 @@ targetFunction dataset nn =
   V.map (\(x, y) -> vectorSize' $ V.zipWith (-!) (forwardPropagate nn x) y)
         dataset
 
-targetFunctionGrad
+targetFunctionGradAD
   :: forall n o a. (Floating a)
   => (VectorisedNonlinearity n Vector, VectorisedNonlinearity o Vector)
   => Vector (Vector a, Vector a)
   -> NN n o a
   -> (a, Grad (NN n o) a)
--- targetFunctionGrad dataset nn =
---   second Grad $ grad' (targetFunction (V.map (V.map auto *** V.map auto) dataset)) nn
-targetFunctionGrad dataset =
+targetFunctionGradAD dataset =
   second Grad . grad' (targetFunction' dataset)
   where
     targetFunction'

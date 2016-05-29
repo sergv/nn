@@ -141,7 +141,7 @@ __m256 simd_sigmoid_derivf(__m256 x)
 __m256 simd_tanhf(__m256 x)
 {
         const __m256 y = simd_expf(x);
-        const __m256 z = simd_expf(_mm256_sub_ps(_mm256_set1_ps(0.0f), x));
+        const __m256 z = simd_expf(_mm256_mul_ps(_mm256_set1_ps(-1.0f), x));
         return _mm256_div_ps(_mm256_sub_ps(y, z), _mm256_add_ps(y, z));
 }
 
@@ -197,9 +197,9 @@ inline void simd_sigmoid_with_derivf(__m256 x, __m256 * __restrict nonlin, __m25
 __attribute__((always_inline))
 inline void simd_tanh_with_derivf(__m256 x, __m256 * __restrict nonlin, __m256 * __restrict deriv)
 {
-        const __m256 eX = simd_expf(x);
-        const __m256 eMinusX = simd_expf(_mm256_sub_ps(_mm256_set1_ps(0.0f), x));
-        *nonlin = _mm256_div_ps(_mm256_sub_ps(eX, eMinusX), _mm256_add_ps(eX, eMinusX));
+        const __m256 e_x       = simd_expf(x);
+        const __m256 e_minus_x = simd_expf(_mm256_mul_ps(_mm256_set1_ps(-1.0f), x));
+        *nonlin = _mm256_div_ps(_mm256_sub_ps(e_x, e_minus_x), _mm256_add_ps(e_x, e_minus_x));
         *deriv  = _mm256_sub_ps(_mm256_set1_ps(1.0f), _mm256_mul_ps(*nonlin, *nonlin));;
 }
 
@@ -264,7 +264,7 @@ __m256d simd_sigmoid_deriv(__m256d x)
 __m256d simd_tanh(__m256d x)
 {
         const __m256d y = simd_exp(x);
-        const __m256d z = simd_exp(_mm256_sub_pd(_mm256_set1_pd(0.0), x));
+        const __m256d z = simd_exp(_mm256_mul_pd(_mm256_set1_pd(-1.0), x));
         return _mm256_div_pd(_mm256_sub_pd(y, z), _mm256_add_pd(y, z));
 }
 
@@ -309,21 +309,25 @@ MAP_FUNC_DOUBLE(map_tanh_deriv, simd_tanh_deriv)
 /* Nonlinearity with deriv, double */
 
 __attribute__((always_inline))
-inline void simd_sigmoid_with_deriv(__m256d x, __m256d * __restrict nonlin, __m256d * __restrict deriv)
+inline void simd_sigmoid_with_deriv(__m256d x, double_aligned * __restrict nonlin, double_aligned * __restrict deriv)
 {
-        const __m256d y        = simd_exp(x);
-        const __m256d y_plus_1 = _mm256_add_pd(y, _mm256_set1_pd(1.0));
-        *nonlin = _mm256_div_pd(y, y_plus_1);
-        *deriv  = _mm256_div_pd(*nonlin, y_plus_1);
+        const __m256d e_x        = simd_exp(x);
+        const __m256d e_x_plus_1 = _mm256_add_pd(e_x, _mm256_set1_pd(1.0));
+        const __m256d y          = _mm256_div_pd(e_x, e_x_plus_1);
+        const __m256d dy         = _mm256_div_pd(dy, e_x_plus_1);
+        _mm256_store_pd(nonlin, y);
+        _mm256_store_pd(deriv, dy);
 }
 
 __attribute__((always_inline))
-inline void simd_tanh_with_deriv(__m256d x, __m256d * __restrict nonlin, __m256d * __restrict deriv)
+inline void simd_tanh_with_deriv(__m256d x, double_aligned * __restrict nonlin, double_aligned * __restrict deriv)
 {
-        const __m256d eX = simd_exp(x);
-        const __m256d eMinusX = simd_exp(_mm256_sub_pd(_mm256_set1_pd(0.0), x));
-        *nonlin = _mm256_div_pd(_mm256_sub_pd(eX, eMinusX), _mm256_add_pd(eX, eMinusX));
-        *deriv  = _mm256_sub_pd(_mm256_set1_pd(1.0f), _mm256_mul_pd(*nonlin, *nonlin));;
+        const __m256d e_x       = simd_exp(x);
+        const __m256d e_minus_x = simd_exp(_mm256_mul_pd(_mm256_set1_pd(-1.0), x));
+        const __m256d y         = _mm256_div_pd(_mm256_sub_pd(e_x, e_minus_x), _mm256_add_pd(e_x, e_minus_x));
+        const __m256d dy        = _mm256_sub_pd(_mm256_set1_pd(1.0), _mm256_mul_pd(y, y));
+        _mm256_store_pd(nonlin, y);
+        _mm256_store_pd(deriv, dy);
 }
 
 #define MAP_FUNC_WITH_DERIV(NAME, FUNC)                                 \
@@ -336,14 +340,10 @@ inline void simd_tanh_with_deriv(__m256d x, __m256d * __restrict nonlin, __m256d
                 const unsigned int m  = n >> 2;                         \
                 const unsigned int m4 = m << 2;                         \
                                                                         \
-                __m256d nonlin, deriv;                                  \
                 for (i = 0; i < m; i++) {                               \
-                        __m256d x = _mm256_load_pd(&xs[i * 4]);         \
+                        const __m256d x = _mm256_load_pd(&xs[i * 4]);   \
                                                                         \
-                        FUNC(x, &nonlin, &deriv);                       \
-                                                                        \
-                        _mm256_store_pd(&values[i * 4], nonlin);        \
-                        _mm256_store_pd(&derivs[i * 4], deriv);         \
+                        FUNC(x, &values[i * 4], &derivs[i * 4]);        \
                 }                                                       \
                                                                         \
                 double leftover[4] DOUBLE_ALIGNED = { 0, 0, 0, 0 };     \
@@ -352,16 +352,13 @@ inline void simd_tanh_with_deriv(__m256d x, __m256d * __restrict nonlin, __m256d
                 }                                                       \
                                                                         \
                 const __m256d x = _mm256_load_pd(leftover);             \
-                FUNC(x, &nonlin, &deriv);                               \
+                double nonlin_store[4] DOUBLE_ALIGNED;                  \
+                double deriv_store[4] DOUBLE_ALIGNED;                   \
+                FUNC(x, nonlin_store, deriv_store);                     \
                                                                         \
-                _mm256_store_pd(leftover, nonlin);                      \
                 for (i = m4, j = 0; i < n; i++, j++) {                  \
-                        values[i] = leftover[j];                        \
-                }                                                       \
-                                                                        \
-                _mm256_store_pd(leftover, deriv);                       \
-                for (i = m4, j = 0; i < n; i++, j++) {                  \
-                        derivs[i] = leftover[j];                        \
+                        values[i] = nonlin_store[j];                    \
+                        derivs[i] = deriv_store[j];                     \
                 }                                                       \
         }
 

@@ -11,8 +11,9 @@
 --
 ----------------------------------------------------------------------------
 
-{-# LANGUAGE DeriveFunctor            #-}
+{-# LANGUAGE ConstraintKinds          #-}
 {-# LANGUAGE DeriveFoldable           #-}
+{-# LANGUAGE DeriveFunctor            #-}
 {-# LANGUAGE DeriveTraversable        #-}
 {-# LANGUAGE EmptyDataDecls           #-}
 {-# LANGUAGE FlexibleContexts         #-}
@@ -57,16 +58,12 @@ data OpenBlasMatrix a = OpenBlasMatrix
   { obmRows    :: {-# UNPACK #-} !Int
   , obmColumns :: {-# UNPACK #-} !Int
   , _obmData   :: !(S.Vector a)
-  }
-  deriving (Show, Eq, Ord)
-
-unboxedMatrixWithTransposeToList :: (ElemConstraints OpenBlasMatrix a) => OpenBlasMatrix a -> [[a]]
-unboxedMatrixWithTransposeToList (OpenBlasMatrix _ cols xs) = takeBy cols $ VC.toList xs
+  } deriving (Show, Eq, Ord)
 
 instance (ElemConstraints OpenBlasMatrix a, Pretty a) => Pretty (OpenBlasMatrix a) where
   pretty um@(OpenBlasMatrix rows cols _) =
     "Matrix " <> PP.int rows <> "x" <> PP.int cols PP.<$>
-    PP.vsep (L.map showRow $ unboxedMatrixWithTransposeToList um)
+    PP.vsep (L.map showRow $ toList um)
     where
       showRow :: [a] -> Doc
       showRow = PP.hcat . PP.punctuate PP.comma . L.map pretty
@@ -264,9 +261,6 @@ instance Matrix OpenBlasMatrix AlignedStorableVector where
       OpenBlasMatrix xRows xCols <$> S.freeze zs
     where
       size = xRows * xCols
-    -- OpenBlasMatrix xRows xCols (zipWith f xs ys) (zipWith f xsT ysT)
-    --   where
-    --     f x y = x +! c *! y
   sumColumns (OpenBlasMatrix rows cols xs) =
     VC.fromList $ cfmap VC.sum $ svecTakeBy rows cols xs
   sum (OpenBlasMatrix _ _ xs) = VC.sum xs
@@ -329,50 +323,45 @@ instance Matrix OpenBlasMatrix AlignedStorableVector where
 
 instance
   (ElemConstraints OpenBlasMatrix a)
-  =>
-  SpecialisedFunction Exp (OpenBlasMatrix a) (OpenBlasMatrix a)
+  => SpecialisedFunction Exp (OpenBlasMatrix a) (OpenBlasMatrix a)
   where
   {-# INLINABLE sfmap #-}
-  sfmap _ = mapForeignFunc Aligned.mapExp
+  sfmap _ = applyVectorisedForeignFunc Aligned.mapExp
 
 instance
   (ElemConstraints OpenBlasMatrix a)
-  =>
-  SpecialisedFunction Sigmoid (OpenBlasMatrix a) (OpenBlasMatrix a)
+  => SpecialisedFunction Sigmoid (OpenBlasMatrix a) (OpenBlasMatrix a)
   where
   {-# INLINABLE sfmap #-}
-  sfmap _ = mapForeignFunc Aligned.mapSigmoid
+  sfmap _ = applyVectorisedForeignFunc Aligned.mapSigmoid
 
 instance
   (ElemConstraints OpenBlasMatrix a)
-  =>
-  SpecialisedFunction (Deriv Sigmoid) (OpenBlasMatrix a) (Grad OpenBlasMatrix a)
+  => SpecialisedFunction (Deriv Sigmoid) (OpenBlasMatrix a) (Grad OpenBlasMatrix a)
   where
   {-# INLINABLE sfmap #-}
-  sfmap _ = Grad . mapForeignFunc Aligned.mapSigmoidDeriv
+  sfmap _ = Grad . applyVectorisedForeignFunc Aligned.mapSigmoidDeriv
 
 instance
   (ElemConstraints OpenBlasMatrix a)
-  =>
-  SpecialisedFunction HyperbolicTangent (OpenBlasMatrix a) (OpenBlasMatrix a)
+  => SpecialisedFunction HyperbolicTangent (OpenBlasMatrix a) (OpenBlasMatrix a)
   where
   {-# INLINABLE sfmap #-}
-  sfmap _ = mapForeignFunc Aligned.mapTanh
+  sfmap _ = applyVectorisedForeignFunc Aligned.mapTanh
 
 instance
   (ElemConstraints OpenBlasMatrix a)
-  =>
-  SpecialisedFunction (Deriv HyperbolicTangent) (OpenBlasMatrix a) (Grad OpenBlasMatrix a)
+  => SpecialisedFunction (Deriv HyperbolicTangent) (OpenBlasMatrix a) (Grad OpenBlasMatrix a)
   where
   {-# INLINABLE sfmap #-}
-  sfmap _ = Grad . mapForeignFunc Aligned.mapTanhDeriv
+  sfmap _ = Grad . applyVectorisedForeignFunc Aligned.mapTanhDeriv
 
-mapForeignFunc
+applyVectorisedForeignFunc
   :: (ElemConstraints OpenBlasMatrix a)
   => (Int -> Ptr a -> Ptr a -> IO ())
   -> OpenBlasMatrix a
   -> OpenBlasMatrix a
-mapForeignFunc f (OpenBlasMatrix rows cols xs) =
+applyVectorisedForeignFunc f (OpenBlasMatrix rows cols xs) =
   unsafePerformIO $ do
     result <- SM.unsafeNew n
     S.unsafeWith xs $ \xsPtr ->
@@ -384,26 +373,27 @@ mapForeignFunc f (OpenBlasMatrix rows cols xs) =
 
 instance
   (ElemConstraints OpenBlasMatrix a)
-  =>
-  SpecialisedFunction (FuncWithDeriv Sigmoid) (OpenBlasMatrix a) (OpenBlasMatrix a, Grad OpenBlasMatrix a)
+  => SpecialisedFunction (FuncWithDeriv Sigmoid) (OpenBlasMatrix a) (OpenBlasMatrix a, Grad OpenBlasMatrix a)
   where
   {-# INLINABLE sfmap #-}
-  sfmap _ = coerce . mapForeignFunc' Aligned.mapSigmoidWithDeriv
+  sfmap _ = coerce . applyVectorisedForeignFunc' Aligned.mapSigmoidWithDeriv
 
 instance
   (ElemConstraints OpenBlasMatrix a)
-  =>
-  SpecialisedFunction (FuncWithDeriv HyperbolicTangent) (OpenBlasMatrix a) (OpenBlasMatrix a, Grad OpenBlasMatrix a)
+  => SpecialisedFunction
+       (FuncWithDeriv HyperbolicTangent)
+       (OpenBlasMatrix a)
+       (OpenBlasMatrix a, Grad OpenBlasMatrix a)
   where
   {-# INLINABLE sfmap #-}
-  sfmap _ = coerce . mapForeignFunc' Aligned.mapTanhWithDeriv
+  sfmap _ = coerce . applyVectorisedForeignFunc' Aligned.mapTanhWithDeriv
 
-mapForeignFunc'
+applyVectorisedForeignFunc'
   :: (ElemConstraints OpenBlasMatrix a)
   => (Int -> Ptr a -> Ptr a -> Ptr a -> IO ())
   -> OpenBlasMatrix a
   -> (OpenBlasMatrix a, OpenBlasMatrix a)
-mapForeignFunc' f (OpenBlasMatrix rows cols xs) =
+applyVectorisedForeignFunc' f (OpenBlasMatrix rows cols xs) =
   unsafePerformIO $ do
     resultX <- SM.unsafeNew n
     resultY <- SM.unsafeNew n

@@ -35,7 +35,13 @@ eps :: Double
 eps = sqrt $ sqrt machineEps
 
 instance Eq ApproxEq where
-  ApproxEq x == ApproxEq y = abs (toDouble x - toDouble y) <= eps
+  ApproxEq x == ApproxEq y = absEq || relEq
+    where
+      absEq   = absDiff <= eps
+      relEq   = absDiff <= eps * max (abs x') (abs y')
+      absDiff = abs (x' - y')
+      x'      = toDouble x
+      y'      = toDouble y
 
 instance Show ApproxEq where
   show (ApproxEq x) = show x

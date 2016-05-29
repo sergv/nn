@@ -313,7 +313,8 @@ targetFunction dataset nn =
                     zipWith (-!) (forwardPropagate nn x) y)
         dataset
 
-targetFunctionGrad
+-- | Compute target function gradient with the help of ad.
+targetFunctionGradAD
   :: forall w v n o a. (Matrix w v, Traversable w, ElemConstraints w ~ IdConstraint)
   => (Vect v, ConstrainedFunctor v, Traversable v, ElemConstraints v ~ IdConstraint)
   => (VectorisedNonlinearity n v, VectorisedNonlinearity o v)
@@ -321,7 +322,7 @@ targetFunctionGrad
   => Vector (v a, v a)
   -> NN w v n o a
   -> (a, Grad (NN w v n o) a)
-targetFunctionGrad dataset =
+targetFunctionGradAD dataset =
   \nn -> second Grad $ grad' (targetFunction' dataset) nn
   where
     targetFunction'

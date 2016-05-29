@@ -42,6 +42,7 @@
 #define FMA_F_LOADED(c, x, rest) _mm256_fmadd_ps(x, rest, c)
 #define FMA_F_END(c) _mm256_set1_ps(c)
 
+__attribute__((always_inline))
 __m256 simd_expf(__m256 x)
 {
         const __m256 one = _mm256_set1_ps(1.0f);
@@ -61,7 +62,7 @@ __m256 simd_expf(__m256 x)
         const __m256 fx_rounded = _mm256_sub_ps(tmp, mask);
 
         const __m256 x_reduced = _mm256_sub_ps(
-                                   _mm256_sub_ps(x,
+                                   _mm256_sub_ps(x_clamped,
                                                  _mm256_mul_ps(fx_rounded,
                                                                _mm256_set1_ps(EXP_C1_F))),
                                    _mm256_mul_ps(fx_rounded,

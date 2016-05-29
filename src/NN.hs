@@ -47,7 +47,7 @@ class (ConstrainedFunctor nn) => NNVectorLike (nn :: * -> *) a where
 
 class (ConstrainedFunctor nn) => NeuralNetwork (nn :: * -> *) (v :: * -> *) a | nn -> v where
   -- | Evaluate neural network on some input, yielding some output
-  forwardPropagate   :: (ElemConstraints nn a) => nn a -> v a -> v a
+  forwardPropagate :: (ElemConstraints nn a) => nn a -> v a -> v a
   -- | Obtain gradient of target function evaluated on some input
   targetFunctionGrad
     :: (ElemConstraints nn a)
@@ -67,7 +67,7 @@ instance
   , Show a
   ) => NeuralNetwork (S.NN n o) Vector a where
   forwardPropagate   = S.forwardPropagate
-  targetFunctionGrad = S.targetFunctionGrad -- S.backprop
+  targetFunctionGrad = S.targetFunctionGradAD -- S.backprop
 
 instance
   ( MC.Matrix w v

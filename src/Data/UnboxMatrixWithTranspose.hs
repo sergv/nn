@@ -65,13 +65,10 @@ data UnboxMatrixWithTranspose a = UnboxMatrixWithTranspose
   }
   deriving (Show, Eq, Ord)
 
-unboxedMatrixWithTransposeToList :: (ElemConstraints UnboxMatrixWithTranspose a) => UnboxMatrixWithTranspose a -> [[a]]
-unboxedMatrixWithTransposeToList (UnboxMatrixWithTranspose _ cols xs _) = takeBy cols $ VC.toList xs
-
 instance (ElemConstraints UnboxMatrixWithTranspose a, Pretty a) => Pretty (UnboxMatrixWithTranspose a) where
   pretty um@(UnboxMatrixWithTranspose rows cols _ _) =
     "Matrix " <> PP.int rows <> "x" <> PP.int cols <> " (double)" PP.<$>
-    PP.vsep (L.map showRow $ unboxedMatrixWithTransposeToList um)
+    PP.vsep (L.map showRow $ toList um)
     where
       showRow :: [a] -> Doc
       showRow = PP.hcat . PP.punctuate PP.comma . L.map pretty
